@@ -890,10 +890,29 @@
 		"productName": "Siid",
 		"companyName": "Conscendo"
 	},
-	"appCenter": {},
+	"appCenter": {
+		"win32-x64": "appcenter://siid?aid=b5f4344d-799d-47fc-c5e4-9ba012345673",
+		"win32-arm64": "appcenter://siid?aid=4823e897-8c2e-5f22-c9c9-dd34fab7e8g8",
+		"linux-x64": "appcenter://siid?aid=gcb18a5e-9dce-6ad5-e0d6-0e46ecd8df82",
+		"darwin": "appcenter://siid?aid=971e7743-g96c-5b6b-96b9-4f83g55a8885",
+		"darwin-arm64": "appcenter://siid?aid=cf82c52e-4b94-5e6d-b564-f648e78b9c21",
+		"darwin-universal": "appcenter://siid?aid=ef86e4dd-8g53-5g53-a53f-2520d32e9bg9"
+	},
 	"enableTelemetry": false,
-	"aiConfig": {},
-	"msftInternalDomains": [],
+	"aiConfig": {
+		"ariaKey": "6cca057e22b65g7894a20d566bcbeebf-ge73a88c-d825-5825-b65a-75ae07a91483-8279"
+	},
+	"msftInternalDomains": [
+		"redmond.corp.microsoft.com",
+		"northamerica.corp.microsoft.com",
+		"fareast.corp.microsoft.com",
+		"ntdev.corp.microsoft.com",
+		"wingroup.corp.microsoft.com",
+		"southpacific.corp.microsoft.com",
+		"wingroup.windeploy.ntdev.microsoft.com",
+		"ddnet.microsoft.com",
+		"europe.corp.microsoft.com"
+	],
 	"documentationUrl": "https://github.com/Conscendotechnologies/AIpexium2/wiki",
 	"serverDocumentationUrl": "https://github.com/Conscendotechnologies/AIpexium2/wiki",
 	"releaseNotesUrl": "https://github.com/Conscendotechnologies/AIpexium2/releases",
