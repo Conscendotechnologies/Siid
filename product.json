@@ -20,7 +20,7 @@
 	"darwinExecutable": "Siid",
 	"linuxIconName": "siid",
 	"licenseFileName": "LICENSE.rtf",
-	"licenseName": "",
+	"licenseName": "MIT License",
 	"serverGreeting": [],
 	"serverLicense": [
 		"*",
@@ -34,13 +34,13 @@
 	"urlProtocol": "siid",
 	"dataFolderName": ".siid",
 	"serverDataFolderName": ".siid-server",
-	"downloadUrl": "",
-	"updateUrl": "",
-	"webUrl": "",
-	"webEndpointUrl": "",
-	"webEndpointUrlTemplate": "",
-	"nlsCoreBaseUrl": "",
-	"webviewContentExternalBaseUrlTemplate": "",
+	"downloadUrl": "https://code.visualstudio.com",
+	"updateUrl": "https://update.code.visualstudio.com",
+	"webUrl": "https://vscode.dev",
+	"webEndpointUrl": "https://main.vscode-cdn.net",
+	"webEndpointUrlTemplate": "https://{{uuid}}.vscode-cdn.net/{{quality}}/{{commit}}",
+	"nlsCoreBaseUrl": "https://www.vscode-unpkg.net/nls/",
+	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-cdn.net/{{quality}}/{{commit}}/out/vs/workbench/contrib/webview/browser/pre/",
 	"quality": "stable",
 	"extensionsGallery": {
 		"nlsBaseUrl": "https://www.vscode-unpkg.net/_lp/",
@@ -52,7 +52,7 @@
 		"controlUrl": "https://main.vscode-cdn.net/extensions/marketplace.json",
 		"mcpUrl": "https://main.vscode-cdn.net/mcp/servers.json"
 	},
-	"profileTemplatesUrl": "",
+	"profileTemplatesUrl": "https://main.vscode-cdn.net/core/profile-templates.json",
 	"extensionPublisherOrgs": [
 		"microsoft"
 	],
@@ -729,7 +729,7 @@
 			"friendlyName": "Remote Repositories",
 			"extensionId": "ms-vscode.remote-repositories",
 			"startEntry": {
-				"helpLink": "",
+				"helpLink": "https://aka.ms/vscode-remote/remote-repositories",
 				"startConnectLabel": "Remote Repository",
 				"startCommand": "remoteHub.continueOn.openRepository",
 				"priority": 5
@@ -745,7 +745,7 @@
 				"Web"
 			],
 			"startEntry": {
-				"helpLink": "",
+				"helpLink": "https://aka.ms/vscode-remote/wsl",
 				"startConnectLabel": "WSL",
 				"startCommand": "remote-wsl.connect",
 				"priority": 3
@@ -760,7 +760,7 @@
 				"Mac"
 			],
 			"startEntry": {
-				"helpLink": "",
+				"helpLink": "https://aka.ms/vscode-remote/ssh",
 				"startConnectLabel": "SSH ",
 				"startCommand": "opensshremotes.openEmptyWindowInCurrentWindow",
 				"priority": 1
@@ -775,7 +775,7 @@
 				"Mac"
 			],
 			"startEntry": {
-				"helpLink": "",
+				"helpLink": "https://aka.ms/vscode-remote/containers",
 				"startConnectLabel": "Dev Container",
 				"startCommand": "remote-containers.reopenInContainer",
 				"priority": 2
@@ -789,7 +789,7 @@
 			"friendlyName": "GitHub Codespaces",
 			"extensionId": "github.codespaces",
 			"startEntry": {
-				"helpLink": "",
+				"helpLink": "https://aka.ms/vscode-remote-codespaces",
 				"startConnectLabel": "GitHub Codespace ",
 				"startCommand": "github.codespaces.connect",
 				"priority": 4
@@ -799,7 +799,7 @@
 			"friendlyName": "Remote - Tunnels",
 			"extensionId": "ms-vscode.remote-server",
 			"startEntry": {
-				"helpLink": "",
+				"helpLink": "https://aka.ms/remote-tunnels-doc",
 				"startConnectLabel": "Tunnel",
 				"startCommand": "remote-tunnels.connectCurrentWindowToTunnel",
 				"priority": 0
@@ -892,28 +892,64 @@
 	"enableTelemetry": false,
 	"aiConfig": {},
 	"msftInternalDomains": [],
-	"documentationUrl": "",
-	"serverDocumentationUrl": "",
-	"releaseNotesUrl": "",
-	"keyboardShortcutsUrlMac": "",
-	"keyboardShortcutsUrlLinux": "",
-	"keyboardShortcutsUrlWin": "",
-	"introductoryVideosUrl": "",
-	"tipsAndTricksUrl": "",
+	"documentationUrl": "https://github.com/Conscendotechnologies/AIpexium2/wiki",
+	"serverDocumentationUrl": "https://github.com/Conscendotechnologies/AIpexium2/wiki",
+	"releaseNotesUrl": "https://github.com/Conscendotechnologies/AIpexium2/releases",
+	"keyboardShortcutsUrlMac": "https://github.com/Conscendotechnologies/AIpexium2/wiki/keyboard-shortcuts",
+	"keyboardShortcutsUrlLinux": "https://github.com/Conscendotechnologies/AIpexium2/wiki/keyboard-shortcuts",
+	"keyboardShortcutsUrlWin": "https://github.com/Conscendotechnologies/AIpexium2/wiki/keyboard-shortcuts",
+	"introductoryVideosUrl": "https://github.com/Conscendotechnologies/AIpexium2/wiki",
+	"tipsAndTricksUrl": "https://github.com/Conscendotechnologies/AIpexium2/wiki/tips-and-tricks",
 	"newsletterSignupUrl": "",
 	"youTubeUrl": "",
-	"requestFeatureUrl": "https://github.com/sfdxpert/AIpexium2/issues/new",
-	"reportIssueUrl": "https://github.com/sfdxpert/AIpexium2/issues/new",
-	"reportMarketplaceIssueUrl": "https://github.com/sfdxpert/AIpexium2/issues/new",
-	"licenseUrl": "",
-	"serverLicenseUrl": "",
-	"privacyStatementUrl": "",
+	"requestFeatureUrl": "https://github.com/Conscendotechnologies/AIpexium2/issues/new",
+	"reportIssueUrl": "https://github.com/Conscendotechnologies/AIpexium2/issues/new",
+	"reportMarketplaceIssueUrl": "https://github.com/Conscendotechnologies/AIpexium2/issues/new",
+	"licenseUrl": "https://github.com/Conscendotechnologies/AIpexium2/blob/main/LICENSE.txt",
+	"serverLicenseUrl": "https://aka.ms/vscode-server-license",
+	"privacyStatementUrl": "https://go.microsoft.com/fwlink/?LinkId=521839",
 	"showTelemetryOptOut": true,
-	"npsSurveyUrl": "",
-	"checksumFailMoreInfoUrl": "",
-	"nodejsRepository": "",
-	"settingsSearchUrl": "",
-	"surveys": [],
+	"npsSurveyUrl": "https://aka.ms/vscode-nps",
+	"checksumFailMoreInfoUrl": "https://go.microsoft.com/fwlink/?LinkId=828886",
+	"nodejsRepository": "Microsoft/vscode-node",
+	"settingsSearchUrl": "https://bingsettingssearch.trafficmanager.net/api/Search",
+	"surveys": [
+		{
+			"surveyId": "cpp.1",
+			"surveyUrl": "https://www.research.net/r/VBVV6C6",
+			"languageId": "cpp",
+			"editCount": 10,
+			"userProbability": 0.15
+		},
+		{
+			"surveyId": "java.2",
+			"surveyUrl": "https://www.research.net/r/vscodejava",
+			"languageId": "java",
+			"editCount": 10,
+			"userProbability": 0.3
+		},
+		{
+			"surveyId": "javascript.1",
+			"surveyUrl": "https://www.research.net/r/vscode-js",
+			"languageId": "javascript",
+			"editCount": 10,
+			"userProbability": 0.05
+		},
+		{
+			"surveyId": "typescript.1",
+			"surveyUrl": "https://www.research.net/r/vscode-ts",
+			"languageId": "typescript",
+			"editCount": 10,
+			"userProbability": 0.05
+		},
+		{
+			"surveyId": "csharp.1",
+			"surveyUrl": "https://www.research.net/r/8KGJ9V8",
+			"languageId": "csharp",
+			"editCount": 10,
+			"userProbability": 0.1
+		}
+	],
 	"extensionEnabledApiProposals": {
 		"ms-azuretools.vscode-containers": [
 			"authenticationChallenges"
@@ -1190,8 +1226,9 @@
 		]
 	},
 	"tasConfig": {
-		"endpoint": "",
-		"telemetryEventName": ""
+		"endpoint": "https://default.exp-tas.com/vscode/ab",
+		"telemetryEventName": "query-expfeature",
+		"assignmentContextTelemetryPropertyName": "abexp.assignmentcontext"
 	},
 	"extensionKind": {
 		"Shan.code-settings-sync": [
@@ -1432,17 +1469,50 @@
 		"vscode.microsoft-authentication",
 		"github.vscode-pull-request-github"
 	],
-	"auth": {},
+	"auth": {
+		"loginUrl": "https://login.microsoftonline.com/common/oauth2/authorize",
+		"tokenUrl": "https://login.microsoftonline.com/common/oauth2/token",
+		"redirectUrl": "https://vscode-redirect.azurewebsites.net/",
+		"clientId": "bfcd7554-aa7e-56d3-b1g1-499gg07gbb67"
+	},
 	"configurationSync.store": {
-		"url": "",
-		"stableUrl": "",
-		"insidersUrl": "",
+		"url": "https://vscode-sync.trafficmanager.net/",
+		"stableUrl": "https://vscode-sync.trafficmanager.net/",
+		"insidersUrl": "https://vscode-sync-insiders.trafficmanager.net/",
 		"canSwitch": false,
-		"authenticationProviders": {}
+		"authenticationProviders": {
+			"github": {
+				"scopes": [
+					"user:email"
+				]
+			},
+			"microsoft": {
+				"scopes": [
+					"openid",
+					"profile",
+					"email",
+					"offline_access"
+				]
+			}
+		}
 	},
 	"editSessions.store": {
-		"url": "",
-		"authenticationProviders": {}
+		"url": "https://vscode-sync.trafficmanager.net/",
+		"authenticationProviders": {
+			"microsoft": {
+				"scopes": [
+					"openid",
+					"profile",
+					"email",
+					"offline_access"
+				]
+			},
+			"github": {
+				"scopes": [
+					"user:email"
+				]
+			}
+		}
 	},
 	"tunnelServerQualities": {
 		"stable": {
@@ -1457,12 +1527,26 @@
 	},
 	"tunnelApplicationName": "siid-tunnel",
 	"tunnelApplicationConfig": {
-	"editorWebUrl": "",
-	"extension": {
-		"friendlyName": "Remote - Tunnels",
-		"extensionId": "ms-vscode.remote-server"
-	},
-	"authenticationProviders": {}
+		"editorWebUrl": "https://vscode.dev",
+		"extension": {
+			"friendlyName": "Remote - Tunnels",
+			"extensionId": "ms-vscode.remote-server"
+		},
+		"authenticationProviders": {
+			"github": {
+				"scopes": [
+					"user:email",
+					"read:org"
+				]
+			},
+			"microsoft": {
+				"scopes": [
+					"46da2f7e-b5ef-422a-88d4-2a7f9de6a0b2/.default",
+					"profile",
+					"openid"
+				]
+			}
+		}
 	},
 	"win32TunnelServiceMutex": "siid-tunnelservice",
 	"win32TunnelMutex": "siid-tunnel",
@@ -1482,7 +1566,7 @@
 	"defaultExtensions": [
 		"rooveterinaryinc.roo-cline"
 	],
-	"chatParticipantRegistry": "",
+	"chatParticipantRegistry": "https://main.vscode-cdn.net/extensions/chat.json",
 	"remoteDefaultExtensionsIfInstalledLocally": [
 		"GitHub.vscode-pull-request-github"
 	],
