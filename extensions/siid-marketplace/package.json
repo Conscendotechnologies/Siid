@@ -18,7 +18,7 @@
 				{
 					"id": "siid-marketplace-activitybar",
 					"title": "Siid Extensions",
-					"icon": "$(extensions)"
+					"icon": "$(package)"
 				}
 			]
 		},

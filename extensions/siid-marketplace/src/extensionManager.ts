@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import * as https from 'https';
 import { GitHubService } from './githubService';
 import { ConfigService } from './configService';
@@ -22,10 +23,8 @@ export class ExtensionManager {
 		this.logger = LoggerService.getInstance();
 		this.bundledManager = BundledExtensionManager.getInstance();
 
-		// Create extensions storage directory
-		const extensionPath = vscode.extensions.getExtension('ConscendoTechInc.siid-marketplace')?.extensionPath || __dirname;
-		this.extensionsPath = path.join(extensionPath, 'downloads');
-		this.ensureDirectoryExists(this.extensionsPath);
+		// Set downloads path but don't create directory yet (created on-demand)
+		this.extensionsPath = path.join(os.tmpdir(), 'siid-marketplace-downloads');
 	}
 
 	public static getInstance(): ExtensionManager {
@@ -270,6 +269,9 @@ export class ExtensionManager {
 	}
 
 	private async downloadVsixFile(url: string, extensionId: string): Promise<string> {
+		// Ensure downloads directory exists before downloading
+		await this.ensureDirectoryExistsAsync();
+
 		return new Promise((resolve, reject) => {
 			const fileName = `${extensionId}-${Date.now()}.vsix`;
 			const filePath = path.join(this.extensionsPath, fileName);
@@ -332,9 +334,14 @@ export class ExtensionManager {
 		return 0;
 	}
 
-	private ensureDirectoryExists(dirPath: string): void {
-		if (!fs.existsSync(dirPath)) {
-			fs.mkdirSync(dirPath, { recursive: true });
+	private async ensureDirectoryExistsAsync(): Promise<void> {
+		try {
+			const dirUri = vscode.Uri.file(this.extensionsPath);
+			await vscode.workspace.fs.createDirectory(dirUri);
+		} catch (error) {
+			// Directory might already exist, or we might not have permissions
+			// Log the error but don't throw - we'll handle it during actual file operations
+			this.logger.warn(`[ExtensionManager.ensureDirectoryExistsAsync] Could not create directory ${this.extensionsPath}: ${error}`);
 		}
 	}
 
