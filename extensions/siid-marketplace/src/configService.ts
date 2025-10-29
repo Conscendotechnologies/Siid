@@ -144,6 +144,28 @@ export class ConfigService {
 					vsixAssetName: "salesforcedx-vscode-soql-*.vsix",
 					displayName: "SOQL",
 					required: true
+				},
+				{
+					owner: "aman-dhakar-191",
+					repo: "salesforcedx-siid",
+					extensionId: "salesforce.apex-language-server-extension",
+					vsixAssetName: "salesforce.apex-language-server-extension-*.vsix",
+					displayName: "Apex Language Server",
+					description: "Apex Language Server for enhanced Apex development experience.",
+					category: "Salesforce",
+					required: true,
+					tags: ["salesforce", "apex", "language-server"]
+				},
+				{
+					owner: "aman-dhakar-191",
+					repo: "salesforcedx-siid",
+					extensionId: "salesforce.salesforce-vscode-slds",
+					vsixAssetName: "salesforce.salesforce-vscode-slds-*.vsix",
+					displayName: "Salesforce Lightning Design System",
+					description: "Salesforce Lightning Design System support for improved UI development.",
+					category: "Salesforce",
+					required: true,
+					tags: ["salesforce", "slds", "lightning", "design-system"]
 				}
 			],
 			autoUpdate: true,
