@@ -23,7 +23,7 @@ declare module '../../../../node_modules/typescript/lib/typescript' {
 			canIncreaseVerbosityLevel?: boolean;
 		}
 		interface UserPreferences {
-			maximumHoverLength?: boolean;
+			readonly maximumHoverLength?: number;
 		}
 	}
 }

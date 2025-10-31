@@ -141,6 +141,9 @@ import './contrib/debug/browser/extensionHostDebugService.js';
 // Welcome Banner
 import './contrib/welcomeBanner/browser/welcomeBanner.contribution.js';
 
+// Welcome Screen
+import './contrib/welcomeScreen/browser/welcomeScreen.contribution.js';
+
 // Webview
 import './contrib/webview/browser/webview.web.contribution.js';
 

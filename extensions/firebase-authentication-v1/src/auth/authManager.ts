@@ -75,18 +75,18 @@ export class AuthManager {
 				`Successfully signed in with user ID: ${authResult.uid}!`
 			);
 
-			// Send post message to siid-roo-cline to update the UI
+			// Send post message to siid-code to update the UI
 			try {
-				await vscode.commands.executeCommand('siid-roo-cline.onFirebaseLogin', {
+				await vscode.commands.executeCommand('siid-code.onFirebaseLogin', {
 					uid: authResult.uid,
 					email: session.user.email,
 					displayName: session.user.displayName,
 					photoURL: session.user.photoURL
 				});
 			} catch (err) {
-				this.logger.error('Failed to send post message to siid-roo-cline.onFirebaseLogin', err);
+				this.logger.error('Failed to send post message to siid-code.onFirebaseLogin', err);
 			}
-			this.logger.info('Sent post message to siid-roo-cline.onFirebaseLogin');
+			this.logger.info('Sent post message to siid-code.onFirebaseLogin');
 
 
 			// Optionally show profile
@@ -108,13 +108,13 @@ export class AuthManager {
 		try {
 			await this.firebaseManager.signOut();
 			this.logger.info('User signed out successfully');
-			// Send post message to siid-roo-cline to update the UI
+			// Send post message to siid-code to update the UI
 			try {
-				await vscode.commands.executeCommand('siid-roo-cline.onFirebaseLogout');
+				await vscode.commands.executeCommand('siid-code.onFirebaseLogout');
 			} catch (err) {
-				this.logger.error('Failed to send post message to siid-roo-cline.onFirebaseLogout', err);
+				this.logger.error('Failed to send post message to siid-code.onFirebaseLogout', err);
 			}
-			this.logger.info('Sent post message to siid-roo-cline.onFirebaseLogout');
+			this.logger.info('Sent post message to siid-code.onFirebaseLogout');
 		} catch (error) {
 			this.logger.error('Sign out failed', error);
 			throw error;

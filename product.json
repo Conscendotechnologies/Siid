@@ -20,15 +20,13 @@
 	"darwinExecutable": "Siid",
 	"linuxIconName": "siid",
 	"licenseFileName": "LICENSE.rtf",
-	"licenseName": "Multiple, see https://code.visualstudio.com/license",
+	"licenseName": "MIT License",
 	"serverGreeting": [],
 	"serverLicense": [
 		"*",
-		"* Visual Studio Code Server",
+		"* Siid Code Server",
 		"*",
-		"* By using the software, you agree to",
-		"* the Visual Studio Code Server License Terms (https://aka.ms/vscode-server-license) and",
-		"* the Microsoft Privacy Statement (https://privacy.microsoft.com/en-US/privacystatement).",
+		"* Licensed under MIT License",
 		"*"
 	],
 	"serverLicensePrompt": "Do you accept the terms in the License Agreement (Y/n)?",
@@ -47,12 +45,14 @@
 	"extensionsGallery": {
 		"nlsBaseUrl": "https://www.vscode-unpkg.net/_lp/",
 		"serviceUrl": "https://marketplace.visualstudio.com/_apis/public/gallery",
+		"cacheUrl": "https://vscode.blob.core.windows.net/gallery/index",
 		"itemUrl": "https://marketplace.visualstudio.com/items",
 		"publisherUrl": "https://marketplace.visualstudio.com/publishers",
 		"resourceUrlTemplate": "https://{publisher}.vscode-unpkg.net/{publisher}/{name}/{version}/{path}",
 		"extensionUrlTemplate": "https://www.vscode-unpkg.net/_gallery/{publisher}/{name}/latest",
 		"controlUrl": "https://main.vscode-cdn.net/extensions/marketplace.json",
-		"mcpUrl": "https://main.vscode-cdn.net/mcp/servers.json"
+		"mcpUrl": "https://main.vscode-cdn.net/mcp/servers.json",
+		"codeExchangeProxyUrl": "https://main.vscode-cdn.net"
 	},
 	"profileTemplatesUrl": "https://main.vscode-cdn.net/core/profile-templates.json",
 	"extensionPublisherOrgs": [
@@ -887,8 +887,8 @@
 		"^https:\\/\\/github\\.com\\/[^/]+\\/[^/]+\\/(actions\\/)?workflows\\/.*badge\\.svg"
 	],
 	"crashReporter": {
-		"productName": "VSCode",
-		"companyName": "Microsoft"
+		"productName": "Siid",
+		"companyName": "Conscendo"
 	},
 	"appCenter": {
 		"win32-x64": "appcenter://siid?aid=b5f4344d-799d-47fc-c5e4-9ba012345673",
@@ -898,7 +898,7 @@
 		"darwin-arm64": "appcenter://siid?aid=cf82c52e-4b94-5e6d-b564-f648e78b9c21",
 		"darwin-universal": "appcenter://siid?aid=ef86e4dd-8g53-5g53-a53f-2520d32e9bg9"
 	},
-	"enableTelemetry": true,
+	"enableTelemetry": false,
 	"aiConfig": {
 		"ariaKey": "6cca057e22b65g7894a20d566bcbeebf-ge73a88c-d825-5825-b65a-75ae07a91483-8279"
 	},
@@ -913,20 +913,20 @@
 		"ddnet.microsoft.com",
 		"europe.corp.microsoft.com"
 	],
-	"documentationUrl": "https://go.microsoft.com/fwlink/?LinkID=533484#vscode",
-	"serverDocumentationUrl": "https://aka.ms/vscode-server-doc",
-	"releaseNotesUrl": "https://go.microsoft.com/fwlink/?LinkID=533483#vscode",
-	"keyboardShortcutsUrlMac": "https://go.microsoft.com/fwlink/?linkid=832143",
-	"keyboardShortcutsUrlLinux": "https://go.microsoft.com/fwlink/?linkid=832144",
-	"keyboardShortcutsUrlWin": "https://go.microsoft.com/fwlink/?linkid=832145",
-	"introductoryVideosUrl": "https://go.microsoft.com/fwlink/?linkid=832146",
-	"tipsAndTricksUrl": "https://go.microsoft.com/fwlink/?linkid=852118",
-	"newsletterSignupUrl": "https://www.research.net/r/vsc-newsletter",
-	"youTubeUrl": "https://aka.ms/vscode-youtube",
-	"requestFeatureUrl": "https://go.microsoft.com/fwlink/?LinkID=533482",
-	"reportIssueUrl": "https://github.com/Microsoft/vscode/issues/new",
-	"reportMarketplaceIssueUrl": "https://github.com/microsoft/vsmarketplace/issues/new",
-	"licenseUrl": "https://go.microsoft.com/fwlink/?LinkID=533485",
+	"documentationUrl": "https://github.com/Conscendotechnologies/AIpexium2/wiki",
+	"serverDocumentationUrl": "https://github.com/Conscendotechnologies/AIpexium2/wiki",
+	"releaseNotesUrl": "https://github.com/Conscendotechnologies/AIpexium2/releases",
+	"keyboardShortcutsUrlMac": "https://github.com/Conscendotechnologies/AIpexium2/wiki/keyboard-shortcuts",
+	"keyboardShortcutsUrlLinux": "https://github.com/Conscendotechnologies/AIpexium2/wiki/keyboard-shortcuts",
+	"keyboardShortcutsUrlWin": "https://github.com/Conscendotechnologies/AIpexium2/wiki/keyboard-shortcuts",
+	"introductoryVideosUrl": "https://github.com/Conscendotechnologies/AIpexium2/wiki",
+	"tipsAndTricksUrl": "https://github.com/Conscendotechnologies/AIpexium2/wiki/tips-and-tricks",
+	"newsletterSignupUrl": "",
+	"youTubeUrl": "",
+	"requestFeatureUrl": "https://github.com/Conscendotechnologies/AIpexium2/issues/new",
+	"reportIssueUrl": "https://github.com/Conscendotechnologies/AIpexium2/issues/new",
+	"reportMarketplaceIssueUrl": "https://github.com/Conscendotechnologies/AIpexium2/issues/new",
+	"licenseUrl": "https://github.com/Conscendotechnologies/AIpexium2/blob/main/LICENSE.txt",
 	"serverLicenseUrl": "https://aka.ms/vscode-server-license",
 	"privacyStatementUrl": "https://go.microsoft.com/fwlink/?LinkId=521839",
 	"showTelemetryOptOut": true,
@@ -1442,7 +1442,9 @@
 		"https://portal.azure.com",
 		"https://raw.githubusercontent.com",
 		"https://private-user-images.githubusercontent.com",
-		"https://avatars.githubusercontent.com"
+		"https://avatars.githubusercontent.com",
+		"https://salesforce-ide-c1761.web.app",
+		"https://salesforce-ide-c1761.firebaseapp.com"
 	],
 	"trustedExtensionAuthAccess": {
 		"github": [

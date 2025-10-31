@@ -198,6 +198,9 @@ import './contrib/performance/browser/performance.contribution.js';
 // Context Menus
 import './contrib/contextmenu/browser/contextmenu.contribution.js';
 
+// Custom Accounts Menu
+import './contrib/customAccountsMenu/browser/customAccountsMenu.contribution.js';
+
 // Notebook
 import './contrib/notebook/browser/notebook.contribution.js';
 

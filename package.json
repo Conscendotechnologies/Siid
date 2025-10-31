@@ -254,16 +254,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "url": "https://github.com/sfdxpert/AIpexium2.git"
   },
   "bugs": {
-    "url": "https://github.com/microsoft/vscode/issues"
+    "url": "https://github.com/sfdxpert/AIpexium2/issues"
   },
   "optionalDependencies": {
     "windows-foreground-love": "0.5.0"
   },
   "build": {
-    "appId": "com.conscendo.issd",
+    "appId": "com.conscendo.siid",
     "productName": "Salesforce Intelligence Integrated Development",
     "directories": {
       "output": "dist"

@@ -4,3 +4,4 @@ node_modules/**
 .vscode/**
 .gitignore
 README.md
+!bundled-extensions/**

@@ -156,6 +156,9 @@ import './contrib/webview/electron-browser/webview.contribution.js';
 // Splash
 import './contrib/splash/electron-browser/splash.contribution.js';
 
+// Welcome Screen
+import './contrib/welcomeScreen/browser/welcomeScreen.contribution.js';
+
 // Local History
 import './contrib/localHistory/electron-browser/localHistory.contribution.js';
 
