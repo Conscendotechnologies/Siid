@@ -1,0 +1,386 @@
+name: Build and Release Alpexium IDE (Auto-Version)
+on:
+  push:
+    branches:
+      - main
+      - release/*
+  workflow_dispatch:  # Manual trigger with optional version override
+    inputs:
+      version_bump:
+        description: 'Version bump type (auto/major/minor/patch)'
+        required: false
+        type: choice
+        options:
+          - auto
+          - major
+          - minor
+          - patch
+        default: 'auto'
+      prerelease:
+        description: 'Mark as pre-release/preview'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  version-and-release:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for changelog
+          
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.15.1'
+          cache: 'npm'
+          
+      - name: Get latest tag
+        id: get_latest_tag
+        shell: bash
+        run: |
+          # Get the latest tag, default to v2025.0.0 if none exists
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v2025.0.0")
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "Latest tag: $LATEST_TAG"
+          
+          # Extract version numbers (remove 'v' prefix)
+          VERSION=${LATEST_TAG#v}
+          echo "current_version=$VERSION" >> $GITHUB_OUTPUT
+          
+      - name: Analyze commits for version bump
+        id: analyze_commits
+        shell: bash
+        run: |
+          LATEST_TAG="${{ steps.get_latest_tag.outputs.latest_tag }}"
+          
+          # Get commits since last tag
+          if git rev-parse "$LATEST_TAG" >/dev/null 2>&1; then
+            COMMITS=$(git log $LATEST_TAG..HEAD --pretty=format:"%s" --no-merges)
+          else
+            COMMITS=$(git log --pretty=format:"%s" --no-merges | head -20)
+          fi
+          
+          echo "Analyzing commits:"
+          echo "$COMMITS"
+          
+          # Determine bump type based on conventional commits
+          BUMP_TYPE="patch"
+          
+          # Check for breaking changes (MAJOR)
+          if echo "$COMMITS" | grep -qiE "^(BREAKING CHANGE:|feat!:|fix!:|refactor!:)"; then
+            BUMP_TYPE="major"
+            echo "🔴 BREAKING CHANGE detected → MAJOR version bump"
+          # Check for new features (MINOR)
+          elif echo "$COMMITS" | grep -qiE "^feat(\(.*\))?:"; then
+            BUMP_TYPE="minor"
+            echo "🟡 New feature detected → MINOR version bump"
+          # Check for fixes or other changes (PATCH)
+          elif echo "$COMMITS" | grep -qiE "^(fix|perf|refactor|docs|chore|style|test)(\(.*\))?:"; then
+            BUMP_TYPE="patch"
+            echo "🟢 Fix/improvement detected → PATCH version bump"
+          # No conventional commits found
+          else
+            BUMP_TYPE="patch"
+            echo "⚪ No conventional commits → default PATCH version bump"
+          fi
+          
+          echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+          
+      - name: Calculate new version
+        id: calc_version
+        shell: bash
+        run: |
+          CURRENT_VERSION="${{ steps.get_latest_tag.outputs.current_version }}"
+          BUMP_TYPE="${{ github.event.inputs.version_bump || steps.analyze_commits.outputs.bump_type }}"
+          
+          echo "Current version: $CURRENT_VERSION"
+          echo "Bump type: $BUMP_TYPE"
+          
+          # Parse current version (format: YEAR.MAJOR.MINOR)
+          IFS='.' read -r YEAR MAJOR MINOR <<< "$CURRENT_VERSION"
+          
+          # Get current year
+          CURRENT_YEAR=$(date +'%Y')
+          
+          # If year changed, reset to YEAR.0.0
+          if [ "$YEAR" != "$CURRENT_YEAR" ]; then
+            NEW_VERSION="$CURRENT_YEAR.0.0"
+            echo "📅 New year detected! Resetting to $NEW_VERSION"
+          else
+            # Apply version bump
+            case $BUMP_TYPE in
+              major)
+                MAJOR=$((MAJOR + 1))
+                MINOR=0
+                NEW_VERSION="$YEAR.$MAJOR.$MINOR"
+                echo "🔴 MAJOR bump: $CURRENT_VERSION → $NEW_VERSION"
+                ;;
+              minor)
+                MINOR=$((MINOR + 1))
+                NEW_VERSION="$YEAR.$MAJOR.$MINOR"
+                echo "🟡 MINOR bump: $CURRENT_VERSION → $NEW_VERSION"
+                ;;
+              patch)
+                # For patch, we increment the minor as patch in our YEAR.MAJOR.MINOR scheme
+                MINOR=$((MINOR + 1))
+                NEW_VERSION="$YEAR.$MAJOR.$MINOR"
+                echo "🟢 PATCH bump: $CURRENT_VERSION → $NEW_VERSION"
+                ;;
+              *)
+                NEW_VERSION="$CURRENT_VERSION"
+                echo "⚪ No bump, keeping: $NEW_VERSION"
+                ;;
+            esac
+          fi
+          
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "new_tag=v$NEW_VERSION" >> $GITHUB_OUTPUT
+          
+      - name: Check if version already exists
+        id: check_version
+        shell: bash
+        run: |
+          NEW_TAG="${{ steps.calc_version.outputs.new_tag }}"
+          
+          if git rev-parse "$NEW_TAG" >/dev/null 2>&1; then
+            echo "⚠️  Tag $NEW_TAG already exists!"
+            echo "version_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Tag $NEW_TAG is available"
+            echo "version_exists=false" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Install dependencies
+        if: steps.check_version.outputs.version_exists == 'false'
+        run: npm install
+        
+      - name: Compile Extensions
+        if: steps.check_version.outputs.version_exists == 'false'
+        run: npm run gulp -- compile-extensions
+        
+      - name: Build Windows x64 min
+        if: steps.check_version.outputs.version_exists == 'false'
+        run: npm run gulp -- vscode-win32-x64-min
+        
+      - name: Build Inno Updater
+        if: steps.check_version.outputs.version_exists == 'false'
+        run: npm run gulp -- vscode-win32-x64-inno-updater
+        
+      - name: Build User Setup
+        if: steps.check_version.outputs.version_exists == 'false'
+        run: npm run gulp -- vscode-win32-x64-user-setup
+        
+      - name: Build System Setup
+        if: steps.check_version.outputs.version_exists == 'false'
+        run: npm run gulp -- vscode-win32-x64-system-setup
+        
+      - name: Rename and collect setup files
+        if: steps.check_version.outputs.version_exists == 'false'
+        shell: pwsh
+        run: |
+          # Create output directory
+          New-Item -ItemType Directory -Force -Path ./release-output
+          
+          # Copy and rename User Setup
+          $userSetupPath = ".build/win32-x64/user-setup/SIIDSetup.exe"
+          if (Test-Path $userSetupPath) {
+            Copy-Item $userSetupPath -Destination "./release-output/AlpexiumIDE-v${{ steps.calc_version.outputs.new_version }}-UserSetup.exe"
+            Write-Host "✓ User Setup copied and renamed"
+          } else {
+            Write-Error "User Setup not found at $userSetupPath"
+            exit 1
+          }
+          
+          # Copy and rename System Setup
+          $systemSetupPath = ".build/win32-x64/system-setup/SIIDSetup.exe"
+          if (Test-Path $systemSetupPath) {
+            Copy-Item $systemSetupPath -Destination "./release-output/AlpexiumIDE-v${{ steps.calc_version.outputs.new_version }}-SystemSetup.exe"
+            Write-Host "✓ System Setup copied and renamed"
+          } else {
+            Write-Error "System Setup not found at $systemSetupPath"
+            exit 1
+          }
+          
+      - name: Generate checksums
+        if: steps.check_version.outputs.version_exists == 'false'
+        shell: pwsh
+        run: |
+          cd release-output
+          Get-ChildItem -Filter "*.exe" | ForEach-Object {
+            $hash = (Get-FileHash -Algorithm SHA256 $_.Name).Hash
+            $hash | Out-File -FilePath "$($_.Name).sha256" -NoNewline
+            Write-Host "✓ Checksum for $($_.Name): $hash"
+          }
+          
+      - name: Get build timestamp
+        id: timestamp
+        shell: bash
+        run: |
+          echo "build_date=$(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_OUTPUT
+          echo "build_date_compact=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
+          
+      - name: Generate changelog
+        id: changelog
+        shell: bash
+        run: |
+          LATEST_TAG="${{ steps.get_latest_tag.outputs.latest_tag }}"
+          NEW_TAG="${{ steps.calc_version.outputs.new_tag }}"
+          
+          echo "# Changelog for $NEW_TAG" > changelog.md
+          echo "" >> changelog.md
+          
+          if git rev-parse "$LATEST_TAG" >/dev/null 2>&1; then
+            echo "## Changes since $LATEST_TAG" >> changelog.md
+            echo "" >> changelog.md
+            
+            # Categorize commits using conventional commits
+            echo "### 🚀 Features" >> changelog.md
+            git log $LATEST_TAG..HEAD --pretty=format:"- %s (%h)" --no-merges | grep -E "^- feat(\(.*\))?:" || echo "- No new features"
+            echo "" >> changelog.md
+            echo "" >> changelog.md
+            
+            echo "### 🐛 Bug Fixes" >> changelog.md
+            git log $LATEST_TAG..HEAD --pretty=format:"- %s (%h)" --no-merges | grep -E "^- fix(\(.*\))?:" || echo "- No bug fixes"
+            echo "" >> changelog.md
+            echo "" >> changelog.md
+            
+            echo "### 📚 Documentation" >> changelog.md
+            git log $LATEST_TAG..HEAD --pretty=format:"- %s (%h)" --no-merges | grep -E "^- docs(\(.*\))?:" || echo "- No documentation changes"
+            echo "" >> changelog.md
+            echo "" >> changelog.md
+            
+            echo "### 🔧 Maintenance" >> changelog.md
+            git log $LATEST_TAG..HEAD --pretty=format:"- %s (%h)" --no-merges | grep -E "^- (chore|refactor|perf|test|style)(\(.*\))?:" || echo "- No maintenance changes"
+            echo "" >> changelog.md
+            echo "" >> changelog.md
+            
+            echo "### ⚠️ Breaking Changes" >> changelog.md
+            git log $LATEST_TAG..HEAD --pretty=format:"- %s (%h)" --no-merges | grep -E "^- .*!:" || echo "- No breaking changes"
+            echo "" >> changelog.md
+            
+          else
+            echo "## Initial Release" >> changelog.md
+            echo "" >> changelog.md
+            echo "This is the first release of Alpexium IDE." >> changelog.md
+          fi
+          
+          # Read changelog into output
+          CHANGELOG_CONTENT=$(cat changelog.md)
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+      - name: Get contributors
+        id: contributors
+        shell: bash
+        run: |
+          LATEST_TAG="${{ steps.get_latest_tag.outputs.latest_tag }}"
+          
+          if git rev-parse "$LATEST_TAG" >/dev/null 2>&1; then
+            CONTRIBUTORS=$(git log $LATEST_TAG..HEAD --pretty=format:"%an" --no-merges | sort -u | sed 's/^/@/' | paste -sd ", " -)
+          else
+            CONTRIBUTORS=$(git log --pretty=format:"%an" --no-merges | sort -u | head -10 | sed 's/^/@/' | paste -sd ", " -)
+          fi
+          
+          if [ -z "$CONTRIBUTORS" ]; then
+            CONTRIBUTORS="@${{ github.actor }}"
+          fi
+          
+          echo "contributors=$CONTRIBUTORS" >> $GITHUB_OUTPUT
+          
+      - name: Create Release
+        if: steps.check_version.outputs.version_exists == 'false'
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "Alpexium IDE ${{ steps.calc_version.outputs.new_tag }}"
+          tag_name: ${{ steps.calc_version.outputs.new_tag }}
+          draft: false
+          prerelease: ${{ github.event.inputs.prerelease || 'false' }}
+          generate_release_notes: false
+          body: |
+            # 🎉 Alpexium IDE ${{ steps.calc_version.outputs.new_tag }}
+            
+            **Build Date:** ${{ steps.timestamp.outputs.build_date }}
+            **Version Bump:** ${{ steps.analyze_commits.outputs.bump_type }}
+            
+            ---
+            
+            ## 📦 Downloads
+            
+            | Installer | Description |
+            |-----------|-------------|
+            | **AlpexiumIDE-${{ steps.calc_version.outputs.new_tag }}-UserSetup.exe** | User installation (current user only, no admin required) |
+            | **AlpexiumIDE-${{ steps.calc_version.outputs.new_tag }}-SystemSetup.exe** | System installation (all users, requires administrator) |
+            
+            ### 🔐 Verify Your Download
+            SHA-256 checksums are provided for each installer. Verify integrity before installation.
+            
+            ---
+            
+            ${{ steps.changelog.outputs.changelog }}
+            
+            ---
+            
+            ## 🔗 Links
+            
+            - **Full Changelog:** [${{ steps.get_latest_tag.outputs.latest_tag }}...${{ steps.calc_version.outputs.new_tag }}](https://github.com/${{ github.repository }}/compare/${{ steps.get_latest_tag.outputs.latest_tag }}...${{ steps.calc_version.outputs.new_tag }})
+            - **Documentation:** [docs.alpexium.com](https://docs.alpexium.com)
+            - **Report Issues:** [GitHub Issues](https://github.com/${{ github.repository }}/issues)
+            
+            ## 👥 Contributors
+            
+            Thank you to all contributors who made this release possible:
+            ${{ steps.contributors.outputs.contributors }}
+            
+            ---
+            
+            ### 📋 Version Scheme
+            
+            Alpexium IDE follows **Semantic Versioning** with year prefix: `YEAR.MAJOR.MINOR`
+            - **MAJOR**: Breaking changes or significant new features
+            - **MINOR**: New features (backward compatible) or bug fixes
+            - Version resets at year boundary (e.g., 2025.x.x → 2026.0.0)
+          files: |
+            release-output/*.exe
+            release-output/*.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Upload Build Artifacts
+        if: steps.check_version.outputs.version_exists == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpexium-ide-${{ steps.calc_version.outputs.new_tag }}-${{ steps.timestamp.outputs.build_date_compact }}
+          path: |
+            release-output/*.exe
+            release-output/*.sha256
+            changelog.md
+          retention-days: 90
+          
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          echo "## 📊 Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Previous Version | \`${{ steps.get_latest_tag.outputs.latest_tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| New Version | \`${{ steps.calc_version.outputs.new_tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Bump Type | **${{ steps.analyze_commits.outputs.bump_type }}** |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build Date | ${{ steps.timestamp.outputs.build_date }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Version Exists | ${{ steps.check_version.outputs.version_exists }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Prerelease | ${{ github.event.inputs.prerelease || 'false' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.check_version.outputs.version_exists }}" == "true" ]; then
+            echo "### ⚠️ Warning" >> $GITHUB_STEP_SUMMARY
+            echo "Version ${{ steps.calc_version.outputs.new_tag }} already exists. Build was skipped." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ✅ Success" >> $GITHUB_STEP_SUMMARY
+            echo "Release ${{ steps.calc_version.outputs.new_tag }} created successfully!" >> $GITHUB_STEP_SUMMARY
+          fi
