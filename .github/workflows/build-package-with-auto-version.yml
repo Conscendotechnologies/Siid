@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - auto-version-update-with-package
       - release/*
   workflow_dispatch:  # Manual trigger with optional version override
     inputs:
