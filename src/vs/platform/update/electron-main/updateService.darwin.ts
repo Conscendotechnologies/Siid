@@ -8,15 +8,17 @@ import { memoize } from '../../../base/common/decorators.js';
 import { Event } from '../../../base/common/event.js';
 import { hash } from '../../../base/common/hash.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { ILifecycleMainService, IRelaunchHandler, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
+import { asJson } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IUpdate, State, StateType, UpdateType } from '../common/update.js';
-import { AbstractUpdateService, createUpdateURL, UpdateErrorClassification } from './abstractUpdateService.js';
+import { AbstractUpdateService, createUpdateURL, parseGitHubReleaseToUpdate, UpdateErrorClassification } from './abstractUpdateService.js';
 
 export class DarwinUpdateService extends AbstractUpdateService implements IRelaunchHandler {
 
@@ -93,14 +95,49 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 
 	protected doCheckForUpdates(explicit: boolean): void {
 		if (!this.url) {
+			console.log('[Update] No update URL configured');
 			return;
 		}
 
 		this.setState(State.CheckingForUpdates(explicit));
 
-		const url = explicit ? this.url : `${this.url}?bg=true`;
-		electron.autoUpdater.setFeedURL({ url });
-		electron.autoUpdater.checkForUpdates();
+		// Check if using GitHub API
+		const isGitHub = this.productService.updateUrl?.includes('api.github.com');
+		console.log('[Update] Using GitHub API:', isGitHub);
+
+		if (isGitHub) {
+			// For GitHub, we need to handle manually since electron.autoUpdater expects specific feed format
+			const url = explicit ? this.url : `${this.url}?bg=true`;
+			console.log('[Update] Checking for updates, explicit:', explicit, 'URL:', url);
+
+			this.requestService.request({ url }, CancellationToken.None)
+				.then<any>(asJson)
+				.then(response => {
+					console.log('[Update] Received GitHub response:', response);
+					const platform = `darwin-${process.arch}`;
+					console.log('[Update] Parsing GitHub response for platform:', platform);
+					const update = parseGitHubReleaseToUpdate(response, platform, this.productService);
+
+					if (!update || !update.url || !update.version || !update.productVersion) {
+						console.log('[Update] No update available or invalid update data');
+						this.setState(State.Idle(UpdateType.Archive));
+					} else {
+						console.log('[Update] Update available:', update);
+						this.setState(State.AvailableForDownload(update));
+					}
+				})
+				.then(undefined, err => {
+					console.error('[Update] Error checking for updates:', err);
+					this.logService.error(err);
+					this.setState(State.Idle(UpdateType.Archive, err.message || err));
+				});
+		} else {
+			// Original Microsoft feed for electron.autoUpdater
+			const url = explicit ? this.url : `${this.url}?bg=true`;
+			console.log('[Update] Using electron.autoUpdater with URL:', url);
+			electron.autoUpdater.setFeedURL({ url });
+			electron.autoUpdater.checkForUpdates();
+		}
 	}
 
 	private onUpdateAvailable(): void {

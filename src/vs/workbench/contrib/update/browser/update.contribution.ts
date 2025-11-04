@@ -109,13 +109,30 @@ export class CheckForUpdateAction extends Action2 {
 			title: localize2('checkForUpdates', 'Check for Updates...'),
 			category: { value: product.nameShort, original: product.nameShort },
 			f1: true,
-			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle),
+			// precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle), // Disabled for debugging
+			menu: [{
+				id: MenuId.GlobalActivity,
+				group: '5_updates',
+				order: 1
+			}]
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
+		console.log('[DEBUG-UPDATE] CheckForUpdateAction RENDERER triggered');
 		const updateService = accessor.get(IUpdateService);
-		return updateService.checkForUpdates(true);
+		console.log('[DEBUG-UPDATE] CheckForUpdateAction RENDERER got updateService:', updateService.constructor.name);
+		console.log('[DEBUG-UPDATE] CheckForUpdateAction RENDERER current state:', updateService.state);
+		console.log('[DEBUG-UPDATE] CheckForUpdateAction RENDERER about to call checkForUpdates(true)');
+
+		try {
+			const result = await updateService.checkForUpdates(true);
+			console.log('[DEBUG-UPDATE] CheckForUpdateAction RENDERER checkForUpdates completed successfully:', result);
+			return result;
+		} catch (error) {
+			console.log('[DEBUG-UPDATE] CheckForUpdateAction RENDERER checkForUpdates failed:', error);
+			throw error;
+		}
 	}
 }
 
@@ -126,7 +143,13 @@ class DownloadUpdateAction extends Action2 {
 			title: localize2('downloadUpdate', 'Download Update'),
 			category: { value: product.nameShort, original: product.nameShort },
 			f1: true,
-			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload)
+			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload),
+			menu: [{
+				id: MenuId.GlobalActivity,
+				group: '5_updates',
+				order: 2,
+				when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload)
+			}]
 		});
 	}
 
@@ -142,7 +165,13 @@ class InstallUpdateAction extends Action2 {
 			title: localize2('installUpdate', 'Install Update'),
 			category: { value: product.nameShort, original: product.nameShort },
 			f1: true,
-			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloaded)
+			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloaded),
+			menu: [{
+				id: MenuId.GlobalActivity,
+				group: '5_updates',
+				order: 3,
+				when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloaded)
+			}]
 		});
 	}
 

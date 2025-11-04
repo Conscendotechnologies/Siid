@@ -12,7 +12,7 @@ import { INativeHostMainService } from '../../native/electron-main/nativeHostMai
 import { IProductService } from '../../product/common/productService.js';
 import { asJson, IRequestService } from '../../request/common/request.js';
 import { AvailableForDownload, IUpdate, State, UpdateType } from '../common/update.js';
-import { AbstractUpdateService, createUpdateURL } from './abstractUpdateService.js';
+import { AbstractUpdateService, createUpdateURL, parseGitHubReleaseToUpdate } from './abstractUpdateService.js';
 
 export class LinuxUpdateService extends AbstractUpdateService {
 
@@ -34,18 +34,39 @@ export class LinuxUpdateService extends AbstractUpdateService {
 
 	protected doCheckForUpdates(explicit: boolean): void {
 		if (!this.url) {
+			console.log('[Update] No update URL configured');
 			return;
 		}
 
 		const url = explicit ? this.url : `${this.url}?bg=true`;
+		console.log('[Update] Checking for updates, explicit:', explicit, 'URL:', url);
 		this.setState(State.CheckingForUpdates(explicit));
 
+		// Check if using GitHub API
+		const isGitHub = this.productService.updateUrl?.includes('api.github.com');
+		console.log('[Update] Using GitHub API:', isGitHub);
+
 		this.requestService.request({ url }, CancellationToken.None)
-			.then<IUpdate | null>(asJson)
-			.then(update => {
+			.then<any>(asJson)
+			.then(response => {
+				console.log('[Update] Received response:', response);
+				let update: IUpdate | null = null;
+
+				if (isGitHub) {
+					// Parse GitHub release response
+					const platform = `linux-${process.arch}`;
+					console.log('[Update] Parsing GitHub response for platform:', platform);
+					update = parseGitHubReleaseToUpdate(response, platform, this.productService);
+				} else {
+					// Original Microsoft format
+					update = response;
+				}
+
 				if (!update || !update.url || !update.version || !update.productVersion) {
+					console.log('[Update] No update available or invalid update data');
 					this.setState(State.Idle(UpdateType.Archive));
 				} else {
+					console.log('[Update] Update available:', update);
 					this.setState(State.AvailableForDownload(update));
 				}
 			})
