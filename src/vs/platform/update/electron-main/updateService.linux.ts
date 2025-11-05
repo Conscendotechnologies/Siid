@@ -34,28 +34,28 @@ export class LinuxUpdateService extends AbstractUpdateService {
 
 	protected doCheckForUpdates(explicit: boolean): void {
 		if (!this.url) {
-			console.log('[Update] No update URL configured');
+			this.logService.trace('[Update] No update URL configured');
 			return;
 		}
 
 		const url = explicit ? this.url : `${this.url}?bg=true`;
-		console.log('[Update] Checking for updates, explicit:', explicit, 'URL:', url);
+		this.logService.trace('[Update] Checking for updates, explicit:', explicit, 'URL:', url);
 		this.setState(State.CheckingForUpdates(explicit));
 
 		// Check if using GitHub API
 		const isGitHub = this.productService.updateUrl?.includes('api.github.com');
-		console.log('[Update] Using GitHub API:', isGitHub);
+		this.logService.trace('[Update] Using GitHub API:', isGitHub);
 
 		this.requestService.request({ url }, CancellationToken.None)
 			.then<any>(asJson)
 			.then(response => {
-				console.log('[Update] Received response:', response);
+				this.logService.trace('[Update] Received response:', response);
 				let update: IUpdate | null = null;
 
 				if (isGitHub) {
 					// Parse GitHub release response
 					const platform = `linux-${process.arch}`;
-					console.log('[Update] Parsing GitHub response for platform:', platform);
+					this.logService.trace('[Update] Parsing GitHub response for platform:', platform);
 					update = parseGitHubReleaseToUpdate(response, platform, this.productService);
 				} else {
 					// Original Microsoft format
@@ -63,10 +63,10 @@ export class LinuxUpdateService extends AbstractUpdateService {
 				}
 
 				if (!update || !update.url || !update.version || !update.productVersion) {
-					console.log('[Update] No update available or invalid update data');
+					this.logService.trace('[Update] No update available or invalid update data');
 					this.setState(State.Idle(UpdateType.Archive));
 				} else {
-					console.log('[Update] Update available:', update);
+					this.logService.trace('[Update] Update available:', update);
 					this.setState(State.AvailableForDownload(update));
 				}
 			})

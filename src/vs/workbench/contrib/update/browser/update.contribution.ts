@@ -109,30 +109,13 @@ export class CheckForUpdateAction extends Action2 {
 			title: localize2('checkForUpdates', 'Check for Updates...'),
 			category: { value: product.nameShort, original: product.nameShort },
 			f1: true,
-			// precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle), // Disabled for debugging
-			menu: [{
-				id: MenuId.GlobalActivity,
-				group: '5_updates',
-				order: 1
-			}]
+			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle),
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		console.log('[DEBUG-UPDATE] CheckForUpdateAction RENDERER triggered');
 		const updateService = accessor.get(IUpdateService);
-		console.log('[DEBUG-UPDATE] CheckForUpdateAction RENDERER got updateService:', updateService.constructor.name);
-		console.log('[DEBUG-UPDATE] CheckForUpdateAction RENDERER current state:', updateService.state);
-		console.log('[DEBUG-UPDATE] CheckForUpdateAction RENDERER about to call checkForUpdates(true)');
-
-		try {
-			const result = await updateService.checkForUpdates(true);
-			console.log('[DEBUG-UPDATE] CheckForUpdateAction RENDERER checkForUpdates completed successfully:', result);
-			return result;
-		} catch (error) {
-			console.log('[DEBUG-UPDATE] CheckForUpdateAction RENDERER checkForUpdates failed:', error);
-			throw error;
-		}
+		return updateService.checkForUpdates(true);
 	}
 }
 

@@ -95,7 +95,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 
 	protected doCheckForUpdates(explicit: boolean): void {
 		if (!this.url) {
-			console.log('[Update] No update URL configured');
+			this.logService.trace('update#doCheckForUpdates(): No update URL configured');
 			return;
 		}
 
@@ -103,38 +103,37 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 
 		// Check if using GitHub API
 		const isGitHub = this.productService.updateUrl?.includes('api.github.com');
-		console.log('[Update] Using GitHub API:', isGitHub);
+		this.logService.trace('[Update] Using GitHub API:', isGitHub);
 
 		if (isGitHub) {
 			// For GitHub, we need to handle manually since electron.autoUpdater expects specific feed format
 			const url = explicit ? this.url : `${this.url}?bg=true`;
-			console.log('[Update] Checking for updates, explicit:', explicit, 'URL:', url);
+			this.logService.trace('[Update] Checking for updates, explicit:', explicit, 'URL:', url);
 
 			this.requestService.request({ url }, CancellationToken.None)
 				.then<any>(asJson)
 				.then(response => {
-					console.log('[Update] Received GitHub response:', response);
+					this.logService.trace('[Update] Received GitHub response:', response);
 					const platform = `darwin-${process.arch}`;
-					console.log('[Update] Parsing GitHub response for platform:', platform);
+					this.logService.trace('[Update] Parsing GitHub response for platform:', platform);
 					const update = parseGitHubReleaseToUpdate(response, platform, this.productService);
 
 					if (!update || !update.url || !update.version || !update.productVersion) {
-						console.log('[Update] No update available or invalid update data');
+						this.logService.trace('[Update] No update available or invalid update data');
 						this.setState(State.Idle(UpdateType.Archive));
 					} else {
-						console.log('[Update] Update available:', update);
+						this.logService.trace('[Update] Update available:', update);
 						this.setState(State.AvailableForDownload(update));
 					}
 				})
 				.then(undefined, err => {
-					console.error('[Update] Error checking for updates:', err);
-					this.logService.error(err);
+					this.logService.error('[Update] Error checking for updates:', err);
 					this.setState(State.Idle(UpdateType.Archive, err.message || err));
 				});
 		} else {
 			// Original Microsoft feed for electron.autoUpdater
 			const url = explicit ? this.url : `${this.url}?bg=true`;
-			console.log('[Update] Using electron.autoUpdater with URL:', url);
+			this.logService.trace('[Update] Using electron.autoUpdater with URL:', url);
 			electron.autoUpdater.setFeedURL({ url });
 			electron.autoUpdater.checkForUpdates();
 		}

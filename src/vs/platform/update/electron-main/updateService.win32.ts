@@ -69,11 +69,9 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
 		@IProductService productService: IProductService
 	) {
-		console.log('[DEBUG-UPDATE] Win32UpdateService MAIN constructor - creating Windows update service');
 		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService);
 
 		lifecycleMainService.setRelaunchHandler(this);
-		console.log('[DEBUG-UPDATE] Win32UpdateService MAIN constructor - relaunch handler set');
 	}
 
 	handleRelaunch(options?: IRelaunchOptions): boolean {
@@ -114,27 +112,21 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	protected doCheckForUpdates(explicit: boolean): void {
-		console.log('[DEBUG-UPDATE] Win32UpdateService MAIN doCheckForUpdates called with explicit:', explicit);
 		if (!this.url) {
-			console.log('[DEBUG-UPDATE] Win32UpdateService MAIN No update URL configured');
+			this.logService.trace('[DEBUG-UPDATE] Win32UpdateService MAIN No update URL configured');
 			return;
 		}
 
 		const url = explicit ? this.url : `${this.url}?bg=true`;
-		console.log('[DEBUG-UPDATE] Win32UpdateService MAIN Checking for updates, explicit:', explicit, 'URL:', url);
 		this.setState(State.CheckingForUpdates(explicit));
 
 		// Check if using GitHub API
 		const isGitHub = this.productService.updateUrl?.includes('api.github.com');
-		console.log('[DEBUG-UPDATE] Win32UpdateService MAIN Using GitHub API:', isGitHub);
 
-		console.log('[DEBUG-UPDATE] Win32UpdateService MAIN Making HTTP request to:', url);
 		this.requestService.request({ url }, CancellationToken.None)
 			.then<any>(asJson)
 			.then(response => {
-				console.log('[DEBUG-UPDATE] Win32UpdateService MAIN Received response:', response);
 				const updateType = getUpdateType();
-				console.log('[DEBUG-UPDATE] Win32UpdateService MAIN updateType:', updateType);
 				let update: IUpdate | null = null;
 
 				if (isGitHub) {
@@ -146,30 +138,23 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 					} else if (this.productService.target === 'user') {
 						platform += '-user';
 					}
-					console.log('[DEBUG-UPDATE] Win32UpdateService MAIN Parsing GitHub response for platform:', platform);
 					update = parseGitHubReleaseToUpdate(response, platform, this.productService);
 				} else {
 					// Original Microsoft format
-					console.log('[DEBUG-UPDATE] Win32UpdateService MAIN Using Microsoft format response');
 					update = response;
 				}
 
-				console.log('[DEBUG-UPDATE] Win32UpdateService MAIN Parsed update:', update);
 
 				if (!update || !update.url || !update.version || !update.productVersion) {
-					console.log('[DEBUG-UPDATE] Win32UpdateService MAIN No update available or invalid update data');
 					this.setState(State.Idle(updateType));
 					return Promise.resolve(null);
 				}
 
-				console.log('[DEBUG-UPDATE] Win32UpdateService MAIN Update available:', update);
 				if (updateType === UpdateType.Archive) {
-					console.log('[DEBUG-UPDATE] Win32UpdateService MAIN Archive update type - setting to AvailableForDownload');
 					this.setState(State.AvailableForDownload(update));
 					return Promise.resolve(null);
 				}
 
-				console.log('[DEBUG-UPDATE] Win32UpdateService MAIN Setup update type - starting download');
 				this.setState(State.Downloading);
 
 				return this.cleanup(update.version).then(() => {
@@ -203,13 +188,11 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				});
 			})
 			.then(undefined, err => {
-				console.log('[DEBUG-UPDATE] Win32UpdateService MAIN HTTP request failed:', err);
 				this.telemetryService.publicLog2<{ messageHash: string }, UpdateErrorClassification>('update:error', { messageHash: String(hash(String(err))) });
 				this.logService.error(err);
 
 				// only show message when explicitly checking for updates
 				const message: string | undefined = explicit ? (err.message || err) : undefined;
-				console.log('[DEBUG-UPDATE] Win32UpdateService MAIN setting state to Idle due to error, message:', message);
 				this.setState(State.Idle(getUpdateType(), message));
 			});
 	}

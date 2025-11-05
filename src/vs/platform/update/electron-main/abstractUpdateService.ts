@@ -18,11 +18,9 @@ export function createUpdateURL(platform: string, quality: string, productServic
 	// Check if using GitHub API for updates
 	if (productService.updateUrl && productService.updateUrl.includes('api.github.com')) {
 		const url = `${productService.updateUrl}/latest`;
-		console.log('[Update] Using GitHub API URL:', url);
 		return url;
 	}
 	const url = `${productService.updateUrl}/api/update/${platform}/${quality}/${productService.commit}`;
-	console.log('[Update] Using Microsoft API URL:', url);
 	return url;
 }
 
@@ -42,22 +40,18 @@ interface GitHubRelease {
 }
 
 export function parseGitHubReleaseToUpdate(release: GitHubRelease, platform: string, productService: IProductService): IUpdate | null {
-	console.log('[Update] Parsing GitHub release:', release.tag_name, 'for platform:', platform);
 
 	// Skip prereleases unless explicitly allowed
 	if (release.prerelease) {
-		console.log('[Update] Skipping prerelease:', release.tag_name);
 		return null;
 	}
 
 	// Find the appropriate asset for this platform
 	const asset = findAssetForPlatform(release.assets, platform, productService);
 	if (!asset) {
-		console.log('[Update] No suitable asset found for platform:', platform, 'Available assets:', release.assets.map(a => a.name));
 		return null;
 	}
 
-	console.log('[Update] Selected asset:', asset.name, 'URL:', asset.browser_download_url);
 
 	// Parse version from tag (assuming v2025.1.0 format after user updates)
 	const version = release.tag_name.startsWith('v') ? release.tag_name.substring(1) : release.tag_name;
@@ -70,12 +64,10 @@ export function parseGitHubReleaseToUpdate(release: GitHubRelease, platform: str
 		sha256hash: asset.digest?.replace('sha256:', '') // Remove sha256: prefix if present
 	};
 
-	console.log('[Update] Created update object:', update);
 	return update;
 }
 
 function findAssetForPlatform(assets: GitHubAsset[], platform: string, productService: IProductService): GitHubAsset | null {
-	console.log('[Update] Finding asset for platform:', platform, 'target:', productService.target);
 
 	// For Windows, prefer user setup over system setup
 	if (platform.startsWith('win32')) {
@@ -89,7 +81,6 @@ function findAssetForPlatform(assets: GitHubAsset[], platform: string, productSe
 				userAsset = assets.find(asset => asset.name.includes('UserSetup.exe'));
 			}
 			if (userAsset) {
-				console.log('[Update] Found user setup asset:', userAsset.name);
 				return userAsset;
 			}
 		} else {
@@ -99,7 +90,6 @@ function findAssetForPlatform(assets: GitHubAsset[], platform: string, productSe
 				systemAsset = assets.find(asset => asset.name.includes('SystemSetup.exe'));
 			}
 			if (systemAsset) {
-				console.log('[Update] Found system setup asset:', systemAsset.name);
 				return systemAsset;
 			}
 		}
@@ -107,7 +97,6 @@ function findAssetForPlatform(assets: GitHubAsset[], platform: string, productSe
 		// Fallback to any .exe file (excluding .sha256 files)
 		const exeAsset = assets.find(asset => asset.name.endsWith('.exe') && !asset.name.endsWith('.sha256'));
 		if (exeAsset) {
-			console.log('[Update] Using fallback exe asset:', exeAsset.name);
 			return exeAsset;
 		}
 	}
@@ -116,7 +105,6 @@ function findAssetForPlatform(assets: GitHubAsset[], platform: string, productSe
 	if (platform.includes('linux')) {
 		const tarAsset = assets.find(asset => asset.name.endsWith('.tar.gz'));
 		if (tarAsset) {
-			console.log('[Update] Found Linux tar.gz asset:', tarAsset.name);
 			return tarAsset;
 		}
 	}
@@ -125,12 +113,10 @@ function findAssetForPlatform(assets: GitHubAsset[], platform: string, productSe
 	if (platform.includes('darwin')) {
 		const dmgAsset = assets.find(asset => asset.name.endsWith('.dmg'));
 		if (dmgAsset) {
-			console.log('[Update] Found macOS dmg asset:', dmgAsset.name);
 			return dmgAsset;
 		}
 	}
 
-	console.log('[Update] No asset found for platform:', platform);
 	return null;
 }
 
@@ -156,11 +142,9 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	protected setState(state: State): void {
-		console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN setState from', this._state.type, 'to', state.type);
-		this.logService.info('update#setState', state.type);
+		this.logService.trace('update#setState', state.type);
 		this._state = state;
 		this._onStateChange.fire(state);
-		console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN state change event fired for:', state.type);
 	}
 
 	constructor(
@@ -171,10 +155,8 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		@ILogService protected logService: ILogService,
 		@IProductService protected readonly productService: IProductService
 	) {
-		console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN constructor - service created');
 		lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen)
 			.finally(() => {
-				console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN AfterWindowOpen phase reached, calling initialize()');
 				this.initialize();
 			});
 	}
@@ -185,50 +167,37 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	 * https://github.com/microsoft/vscode/issues/89784
 	 */
 	protected async initialize(): Promise<void> {
-		console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN initialize() starting');
-		console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN isBuilt:', this.environmentMainService.isBuilt);
-		console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN disableUpdates:', this.environmentMainService.disableUpdates);
-		console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN updateUrl:', this.productService.updateUrl);
-		console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN commit:', this.productService.commit);
 
-		// TEMPORARILY DISABLED FOR TESTING - REMOVE BEFORE PRODUCTION
-		// if (!this.environmentMainService.isBuilt) {
-		// 	this.setState(State.Disabled(DisablementReason.NotBuilt));
-		// 	return; // updates are never enabled when running out of sources
-		// }
+		if (!this.environmentMainService.isBuilt) {
+			this.setState(State.Disabled(DisablementReason.NotBuilt));
+			return; // updates are never enabled when running out of sources
+		}
 
 		if (this.environmentMainService.disableUpdates) {
-			console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN updates disabled by environment');
 			this.setState(State.Disabled(DisablementReason.DisabledByEnvironment));
-			this.logService.info('update#ctor - updates are disabled by the environment');
+			this.logService.trace('update#ctor - updates are disabled by the environment');
 			return;
 		}
 
 		if (!this.productService.updateUrl || !this.productService.commit) {
-			console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN missing configuration - updateUrl:', !!this.productService.updateUrl, 'commit:', !!this.productService.commit);
 			this.setState(State.Disabled(DisablementReason.MissingConfiguration));
-			this.logService.info('update#ctor - updates are disabled as there is no update URL');
+			this.logService.trace('update#ctor - updates are disabled as there is no update URL');
 			return;
 		}
 
 		const updateMode = this.configurationService.getValue<'none' | 'manual' | 'start' | 'default'>('update.mode');
-		console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN updateMode:', updateMode);
 		const quality = this.getProductQuality(updateMode);
-		console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN quality:', quality);
 
 		if (!quality) {
-			console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN no quality, updates disabled by user preference');
 			this.setState(State.Disabled(DisablementReason.ManuallyDisabled));
-			this.logService.info('update#ctor - updates are disabled by user preference');
+			this.logService.trace('update#ctor - updates are disabled by user preference');
 			return;
 		}
 
 		this.url = this.buildUpdateFeedUrl(quality);
-		console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN built update URL:', this.url);
 		if (!this.url) {
-			console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN invalid update URL configuration');
 			this.setState(State.Disabled(DisablementReason.InvalidConfiguration));
-			this.logService.info('update#ctor - updates are disabled as the update URL is badly formed');
+			this.logService.trace('update#ctor - updates are disabled as the update URL is badly formed');
 			return;
 		}
 
@@ -237,27 +206,21 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			const url = new URL(this.url);
 			url.searchParams.set('prss', 'true');
 			this.url = url.toString();
-			console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN PRSS enabled, modified URL:', this.url);
 		}
 
-		console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN setting state to Idle');
 		this.setState(State.Idle(this.getUpdateType()));
-		console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN state set to Idle, current state =', this.state.type);
 
 		if (updateMode === 'manual') {
-			console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN manual mode - no automatic checks');
-			this.logService.info('update#ctor - manual checks only; automatic updates are disabled by user preference');
+			this.logService.trace('update#ctor - manual checks only; automatic updates are disabled by user preference');
 			return;
 		}
 
 		if (updateMode === 'start') {
-			console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN start mode - scheduling one check in 30s');
-			this.logService.info('update#ctor - startup checks only; automatic updates are disabled by user preference');
+			this.logService.trace('update#ctor - startup checks only; automatic updates are disabled by user preference');
 
 			// Check for updates only once after 30 seconds
 			setTimeout(() => this.checkForUpdates(false), 30 * 1000);
 		} else {
-			console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN default mode - scheduling periodic checks');
 			// Start checking for updates after 30 seconds
 			this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
 		}
@@ -277,24 +240,17 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	async checkForUpdates(explicit: boolean): Promise<void> {
-		console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN checkForUpdates called with explicit =', explicit);
-		console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN current state =', this.state.type);
-		console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN StateType.Idle =', StateType.Idle);
-		console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN state comparison:', this.state.type === StateType.Idle);
-		this.logService.info('update#checkForUpdates, state = ', this.state.type);
+		this.logService.trace('update#checkForUpdates, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Idle) {
-			console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN EARLY RETURN - state is not Idle, current state:', this.state.type);
 			return;
 		}
 
-		console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN calling doCheckForUpdates');
 		this.doCheckForUpdates(explicit);
-		console.log('[DEBUG-UPDATE] AbstractUpdateService MAIN doCheckForUpdates call completed');
 	}
 
 	async downloadUpdate(): Promise<void> {
-		this.logService.info('update#downloadUpdate, state = ', this.state.type);
+		this.logService.trace('update#downloadUpdate, state = ', this.state.type);
 
 		if (this.state.type !== StateType.AvailableForDownload) {
 			return;
@@ -308,7 +264,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	async applyUpdate(): Promise<void> {
-		this.logService.info('update#applyUpdate, state = ', this.state.type);
+		this.logService.trace('update#applyUpdate, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Downloaded) {
 			return;
@@ -322,7 +278,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	quitAndInstall(): Promise<void> {
-		this.logService.info('update#quitAndInstall, state = ', this.state.type);
+		this.logService.trace('update#quitAndInstall, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Ready) {
 			return Promise.resolve(undefined);
