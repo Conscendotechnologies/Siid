@@ -12,10 +12,112 @@ import { ILifecycleMainService, LifecycleMainPhase } from '../../lifecycle/elect
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
-import { AvailableForDownload, DisablementReason, IUpdateService, State, StateType, UpdateType } from '../common/update.js';
+import { AvailableForDownload, DisablementReason, IUpdateService, State, StateType, UpdateType, IUpdate } from '../common/update.js';
 
 export function createUpdateURL(platform: string, quality: string, productService: IProductService): string {
-	return `${productService.updateUrl}/api/update/${platform}/${quality}/${productService.commit}`;
+	// Check if using GitHub API for updates
+	if (productService.updateUrl && productService.updateUrl.includes('api.github.com')) {
+		const url = `${productService.updateUrl}/latest`;
+		return url;
+	}
+	const url = `${productService.updateUrl}/api/update/${platform}/${quality}/${productService.commit}`;
+	return url;
+}
+
+interface GitHubAsset {
+	name: string;
+	browser_download_url: string;
+	size: number;
+	digest?: string;
+}
+
+interface GitHubRelease {
+	tag_name: string;
+	name: string;
+	published_at: string;
+	assets: GitHubAsset[];
+	prerelease: boolean;
+}
+
+export function parseGitHubReleaseToUpdate(release: GitHubRelease, platform: string, productService: IProductService): IUpdate | null {
+
+	// Skip prereleases unless explicitly allowed
+	if (release.prerelease) {
+		return null;
+	}
+
+	// Find the appropriate asset for this platform
+	const asset = findAssetForPlatform(release.assets, platform, productService);
+	if (!asset) {
+		return null;
+	}
+
+
+	// Parse version from tag (assuming v2025.1.0 format after user updates)
+	const version = release.tag_name.startsWith('v') ? release.tag_name.substring(1) : release.tag_name;
+
+	const update: IUpdate = {
+		version: release.tag_name, // Keep the full tag name
+		productVersion: version,
+		timestamp: new Date(release.published_at).getTime(),
+		url: asset.browser_download_url,
+		sha256hash: asset.digest?.replace('sha256:', '') // Remove sha256: prefix if present
+	};
+
+	return update;
+}
+
+function findAssetForPlatform(assets: GitHubAsset[], platform: string, productService: IProductService): GitHubAsset | null {
+
+	// For Windows, prefer user setup over system setup
+	if (platform.startsWith('win32')) {
+		// Check if it's a user installation target
+		const isUserSetup = productService.target === 'user';
+
+		if (isUserSetup) {
+			// Look for user setup first - try both old naming and new naming patterns
+			let userAsset = assets.find(asset => asset.name === 'SIIDUserSetup.exe');
+			if (!userAsset) {
+				userAsset = assets.find(asset => asset.name.includes('UserSetup.exe'));
+			}
+			if (userAsset) {
+				return userAsset;
+			}
+		} else {
+			// Look for system setup - try both old naming and new naming patterns
+			let systemAsset = assets.find(asset => asset.name === 'SIIDSystemSetup.exe');
+			if (!systemAsset) {
+				systemAsset = assets.find(asset => asset.name.includes('SystemSetup.exe'));
+			}
+			if (systemAsset) {
+				return systemAsset;
+			}
+		}
+
+		// Fallback to any .exe file (excluding .sha256 files)
+		const exeAsset = assets.find(asset => asset.name.endsWith('.exe') && !asset.name.endsWith('.sha256'));
+		if (exeAsset) {
+			return exeAsset;
+		}
+	}
+
+	// For Linux, look for .tar.gz files
+	if (platform.includes('linux')) {
+		const tarAsset = assets.find(asset => asset.name.endsWith('.tar.gz'));
+		if (tarAsset) {
+			return tarAsset;
+		}
+	}
+
+	// For macOS, look for .dmg files
+	if (platform.includes('darwin')) {
+		const dmgAsset = assets.find(asset => asset.name.endsWith('.dmg'));
+		if (dmgAsset) {
+			return dmgAsset;
+		}
+	}
+
+	return null;
 }
 
 export type UpdateErrorClassification = {
@@ -40,7 +142,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	protected setState(state: State): void {
-		this.logService.info('update#setState', state.type);
+		this.logService.trace('update#setState', state.type);
 		this._state = state;
 		this._onStateChange.fire(state);
 	}
@@ -54,7 +156,9 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		@IProductService protected readonly productService: IProductService
 	) {
 		lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen)
-			.finally(() => this.initialize());
+			.finally(() => {
+				this.initialize();
+			});
 	}
 
 	/**
@@ -63,6 +167,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	 * https://github.com/microsoft/vscode/issues/89784
 	 */
 	protected async initialize(): Promise<void> {
+
 		if (!this.environmentMainService.isBuilt) {
 			this.setState(State.Disabled(DisablementReason.NotBuilt));
 			return; // updates are never enabled when running out of sources
@@ -70,13 +175,13 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 		if (this.environmentMainService.disableUpdates) {
 			this.setState(State.Disabled(DisablementReason.DisabledByEnvironment));
-			this.logService.info('update#ctor - updates are disabled by the environment');
+			this.logService.trace('update#ctor - updates are disabled by the environment');
 			return;
 		}
 
 		if (!this.productService.updateUrl || !this.productService.commit) {
 			this.setState(State.Disabled(DisablementReason.MissingConfiguration));
-			this.logService.info('update#ctor - updates are disabled as there is no update URL');
+			this.logService.trace('update#ctor - updates are disabled as there is no update URL');
 			return;
 		}
 
@@ -85,14 +190,14 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 		if (!quality) {
 			this.setState(State.Disabled(DisablementReason.ManuallyDisabled));
-			this.logService.info('update#ctor - updates are disabled by user preference');
+			this.logService.trace('update#ctor - updates are disabled by user preference');
 			return;
 		}
 
 		this.url = this.buildUpdateFeedUrl(quality);
 		if (!this.url) {
 			this.setState(State.Disabled(DisablementReason.InvalidConfiguration));
-			this.logService.info('update#ctor - updates are disabled as the update URL is badly formed');
+			this.logService.trace('update#ctor - updates are disabled as the update URL is badly formed');
 			return;
 		}
 
@@ -106,12 +211,12 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		this.setState(State.Idle(this.getUpdateType()));
 
 		if (updateMode === 'manual') {
-			this.logService.info('update#ctor - manual checks only; automatic updates are disabled by user preference');
+			this.logService.trace('update#ctor - manual checks only; automatic updates are disabled by user preference');
 			return;
 		}
 
 		if (updateMode === 'start') {
-			this.logService.info('update#ctor - startup checks only; automatic updates are disabled by user preference');
+			this.logService.trace('update#ctor - startup checks only; automatic updates are disabled by user preference');
 
 			// Check for updates only once after 30 seconds
 			setTimeout(() => this.checkForUpdates(false), 30 * 1000);
