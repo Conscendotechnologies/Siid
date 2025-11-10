@@ -35,7 +35,7 @@
 	"dataFolderName": ".siid",
 	"serverDataFolderName": ".siid-server",
 	"downloadUrl": "https://code.visualstudio.com",
-	"updateUrl": "https://update.code.visualstudio.com",
+	"updateUrl": "https://api.github.com/repos/Conscendotechnologies/AIpexium2/releases",
 	"webUrl": "https://vscode.dev",
 	"webEndpointUrl": "https://main.vscode-cdn.net",
 	"webEndpointUrlTemplate": "https://{{uuid}}.vscode-cdn.net/{{quality}}/{{commit}}",

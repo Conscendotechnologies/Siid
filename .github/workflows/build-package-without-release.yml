@@ -1,0 +1,91 @@
+name: Build AIpexium IDE
+on:
+  workflow_dispatch:  # Manual trigger only
+    inputs:
+      version:
+        description: 'Version number (e.g., 0.1.2)'
+        required: true
+        type: string
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.15.1'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm install
+        
+      - name: Compile Extensions
+        run: npm run gulp -- compile-extensions
+        
+      - name: Build Windows x64 min
+        run: npm run gulp -- vscode-win32-x64-min
+        
+      - name: Build Inno Updater
+        run: npm run gulp -- vscode-win32-x64-inno-updater
+        
+      - name: Build User Setup
+        run: npm run gulp -- vscode-win32-x64-user-setup
+        
+      - name: Build System Setup
+        run: npm run gulp -- vscode-win32-x64-system-setup
+        
+      - name: Rename and collect setup files
+        shell: pwsh
+        run: |
+          # Create output directory
+          New-Item -ItemType Directory -Force -Path ./release-output
+          
+          # Copy and rename User Setup
+          $userSetupPath = ".build/win32-x64/user-setup/SIIDSetup.exe"
+          if (Test-Path $userSetupPath) {
+            Copy-Item $userSetupPath -Destination "./release-output/SIIDUserSetup.exe"
+            Write-Host "✓ User Setup copied and renamed"
+          } else {
+            Write-Error "User Setup not found at $userSetupPath"
+            exit 1
+          }
+          
+          # Copy and rename System Setup
+          $systemSetupPath = ".build/win32-x64/system-setup/SIIDSetup.exe"
+          if (Test-Path $systemSetupPath) {
+            Copy-Item $systemSetupPath -Destination "./release-output/SIIDSystemSetup.exe"
+            Write-Host "✓ System Setup copied and renamed"
+          } else {
+            Write-Error "System Setup not found at $systemSetupPath"
+            exit 1
+          }
+          
+      - name: Generate checksums
+        shell: pwsh
+        run: |
+          cd release-output
+          $userHash = (Get-FileHash -Algorithm SHA256 SIIDUserSetup.exe).Hash
+          $systemHash = (Get-FileHash -Algorithm SHA256 SIIDSystemSetup.exe).Hash
+          
+          $userHash | Out-File -FilePath SIIDUserSetup.exe.sha256 -NoNewline
+          $systemHash | Out-File -FilePath SIIDSystemSetup.exe.sha256 -NoNewline
+          
+          Write-Host "✓ Checksums generated"
+          Write-Host "User Setup SHA256: $userHash"
+          Write-Host "System Setup SHA256: $systemHash"
+          
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpexium-ide-installers-2025.${{ github.event.inputs.version }}
+          path: |
+            release-output/SIIDUserSetup.exe
+            release-output/SIIDSystemSetup.exe
+            release-output/*.sha256
