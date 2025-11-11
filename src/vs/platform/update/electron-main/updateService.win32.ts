@@ -24,7 +24,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { asJson, IRequestService } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AvailableForDownload, DisablementReason, IUpdate, State, StateType, UpdateType } from '../common/update.js';
-import { AbstractUpdateService, createUpdateURL, UpdateErrorClassification } from './abstractUpdateService.js';
+import { AbstractUpdateService, createUpdateURL, parseGitHubReleaseToUpdate, UpdateErrorClassification } from './abstractUpdateService.js';
 
 async function pollUntil(fn: () => boolean, millis = 1000): Promise<void> {
 	while (!fn()) {
@@ -113,16 +113,37 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 	protected doCheckForUpdates(explicit: boolean): void {
 		if (!this.url) {
+			this.logService.trace('[DEBUG-UPDATE] Win32UpdateService MAIN No update URL configured');
 			return;
 		}
 
 		const url = explicit ? this.url : `${this.url}?bg=true`;
 		this.setState(State.CheckingForUpdates(explicit));
 
+		// Check if using GitHub API
+		const isGitHub = this.productService.updateUrl?.includes('api.github.com');
+
 		this.requestService.request({ url }, CancellationToken.None)
-			.then<IUpdate | null>(asJson)
-			.then(update => {
+			.then<any>(asJson)
+			.then(response => {
 				const updateType = getUpdateType();
+				let update: IUpdate | null = null;
+
+				if (isGitHub) {
+					// Parse GitHub release response
+					// Build the platform string directly instead of extracting from URL
+					let platform = `win32-${process.arch}`;
+					if (getUpdateType() === UpdateType.Archive) {
+						platform += '-archive';
+					} else if (this.productService.target === 'user') {
+						platform += '-user';
+					}
+					update = parseGitHubReleaseToUpdate(response, platform, this.productService);
+				} else {
+					// Original Microsoft format
+					update = response;
+				}
+
 
 				if (!update || !update.url || !update.version || !update.productVersion) {
 					this.setState(State.Idle(updateType));

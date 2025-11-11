@@ -41,14 +41,22 @@ jobs:
         id: get_latest_tag
         shell: bash
         run: |
-          # Get the latest tag, default to v2025.0.0 if none exists
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v2025.0.0")
+          # Get the latest tag with 'v' prefix, sorted semantically
+          # Filter to only tags matching v*.*.* pattern
+          LATEST_TAG=$(git tag -l "v*.*.*" --sort=-version:refname | head -n 1)
+          
+          # If no v*.*.* tags found, default to v2025.0.0
+          if [ -z "$LATEST_TAG" ]; then
+            LATEST_TAG="v2025.0.0"
+          fi
+          
           echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
           echo "Latest tag: $LATEST_TAG"
           
           # Extract version numbers (remove 'v' prefix)
           VERSION=${LATEST_TAG#v}
           echo "current_version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted version: $VERSION"
           
       - name: Analyze commits for version bump
         id: analyze_commits
@@ -56,8 +64,8 @@ jobs:
         run: |
           LATEST_TAG="${{ steps.get_latest_tag.outputs.latest_tag }}"
           
-          # Get commits since last tag
-          if git rev-parse "$LATEST_TAG" >/dev/null 2>&1; then
+          # Get commits since last tag (only if it's a valid v*.*.* tag)
+          if [[ "$LATEST_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] && git rev-parse "$LATEST_TAG" >/dev/null 2>&1; then
             COMMITS=$(git log $LATEST_TAG..HEAD --pretty=format:"%s" --no-merges)
           else
             COMMITS=$(git log --pretty=format:"%s" --no-merges | head -20)
@@ -145,8 +153,14 @@ jobs:
         run: |
           NEW_TAG="${{ steps.calc_version.outputs.new_tag }}"
           
+          # Also check for release- prefix variant
+          RELEASE_TAG="release-${NEW_TAG#v}"
+          
           if git rev-parse "$NEW_TAG" >/dev/null 2>&1; then
             echo "⚠️  Tag $NEW_TAG already exists!"
+            echo "version_exists=true" >> $GITHUB_OUTPUT
+          elif git rev-parse "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "⚠️  Tag $RELEASE_TAG already exists!"
             echo "version_exists=true" >> $GITHUB_OUTPUT
           else
             echo "✅ Tag $NEW_TAG is available"
@@ -232,7 +246,8 @@ jobs:
           echo "# Changelog for $NEW_TAG" > changelog.md
           echo "" >> changelog.md
           
-          if git rev-parse "$LATEST_TAG" >/dev/null 2>&1; then
+          # Check if LATEST_TAG is a valid v*.*.* tag
+          if [[ "$LATEST_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] && git rev-parse "$LATEST_TAG" >/dev/null 2>&1; then
             echo "## Changes since $LATEST_TAG" >> changelog.md
             echo "" >> changelog.md
             
@@ -279,7 +294,8 @@ jobs:
         run: |
           LATEST_TAG="${{ steps.get_latest_tag.outputs.latest_tag }}"
           
-          if git rev-parse "$LATEST_TAG" >/dev/null 2>&1; then
+          # Check if LATEST_TAG is a valid v*.*.* tag
+          if [[ "$LATEST_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] && git rev-parse "$LATEST_TAG" >/dev/null 2>&1; then
             CONTRIBUTORS=$(git log $LATEST_TAG..HEAD --pretty=format:"%an" --no-merges | sort -u | sed 's/^/@/' | paste -sd ", " -)
           else
             CONTRIBUTORS=$(git log --pretty=format:"%an" --no-merges | sort -u | head -10 | sed 's/^/@/' | paste -sd ", " -)

@@ -21,6 +21,8 @@
 	"linuxIconName": "siid",
 	"licenseFileName": "LICENSE.rtf",
 	"licenseName": "MIT License",
+	"engineVersion": "1.104.1",
+	"version": "",
 	"serverGreeting": [],
 	"serverLicense": [
 		"*",
@@ -35,7 +37,7 @@
 	"dataFolderName": ".siid",
 	"serverDataFolderName": ".siid-server",
 	"downloadUrl": "https://code.visualstudio.com",
-	"updateUrl": "https://update.code.visualstudio.com",
+	"updateUrl": "https://api.github.com/repos/Conscendotechnologies/AIpexium2/releases",
 	"webUrl": "https://vscode.dev",
 	"webEndpointUrl": "https://main.vscode-cdn.net",
 	"webEndpointUrlTemplate": "https://{{uuid}}.vscode-cdn.net/{{quality}}/{{commit}}",
@@ -1659,6 +1661,5 @@
 		"vs/code/electron-browser/workbench/workbench.html": "IXs56lnAOq4GkszLUTUuuJyCTmeRFMqF0kDm+OuRpPQ",
 		"vs/code/electron-browser/workbench/workbench.js": "H0+qVb8MZ4rwRIW+LYcNUfTGViUw2RPIEPf7jrGuDVQ"
 	},
-	"version": "1.104.1",
 	"target": "user"
 }
