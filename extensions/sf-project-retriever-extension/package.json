@@ -1,0 +1,32 @@
+{
+  "name": "sf-project-retriever",
+  "displayName": "SF Project Retriever",
+  "description": "Shows a retrieve prompt automatically after a Salesforce project with manifest is created.",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished", "onWorkspaceContains:manifest/package.xml"],
+  "contributes": {
+    "commands": [
+      {
+        "command": "sf-project-retriever.retrieveNow",
+        "title": "SF: Retrieve Project Source from Org",
+        "category": "SF Project Retriever"
+      }
+    ]
+  },
+  "main": "./out/extension.js",
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "typescript": "^4.9.5",
+    "@types/node": "^18.11.9",
+    "@types/vscode": "^1.80.0"
+  },
+  "dependencies": {}
+}
