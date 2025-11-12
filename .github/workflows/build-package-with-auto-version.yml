@@ -81,10 +81,13 @@ jobs:
         run: |
           LATEST_TAG="${{ steps.get_latest_tag.outputs.latest_tag }}"
           
-          # Get commits since last tag
+          # Check if the tag actually exists in the repository
           if git rev-parse "$LATEST_TAG" >/dev/null 2>&1; then
+            echo "📌 Analyzing commits since existing tag: $LATEST_TAG"
             COMMITS=$(git log $LATEST_TAG..HEAD --pretty=format:"%s" --no-merges)
           else
+            echo "⚠️  Tag $LATEST_TAG does not exist in repository"
+            echo "📝 Analyzing recent commits (last 20)"
             COMMITS=$(git log --pretty=format:"%s" --no-merges | head -20)
           fi
           
@@ -236,12 +239,12 @@ jobs:
         run: |
           LATEST_TAG="${{ steps.get_latest_tag.outputs.latest_tag }}"
           
-          # Get commits since last tag
+          # Check if the tag actually exists in the repository
           if git rev-parse "$LATEST_TAG" >/dev/null 2>&1; then
             echo "Generating changelog from $LATEST_TAG to HEAD"
             COMMITS=$(git log $LATEST_TAG..HEAD --pretty=format:"- %s by @%an in %h" --no-merges)
           else
-            echo "No previous release found. Generating changelog from all commits."
+            echo "Tag $LATEST_TAG does not exist. Generating changelog from all commits."
             COMMITS=$(git log --pretty=format:"- %s by @%an in %h" --no-merges | head -20)
           fi
           
@@ -265,6 +268,7 @@ jobs:
         run: |
           LATEST_TAG="${{ steps.get_latest_tag.outputs.latest_tag }}"
           
+          # Check if the tag actually exists in the repository
           if git rev-parse "$LATEST_TAG" >/dev/null 2>&1; then
             CONTRIBUTORS=$(git log $LATEST_TAG..HEAD --pretty=format:"%an" --no-merges | sort -u | sed 's/^/@/' | paste -sd "," - | sed 's/,/, /g')
           else
