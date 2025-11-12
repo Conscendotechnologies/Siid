@@ -44,9 +44,13 @@ jobs:
           # Get the latest tag with 'v' prefix, sorted semantically
           LATEST_TAG=$(git tag -l "v*.*.*" --sort=-version:refname | head -n 1)
           
-          # If no tags found, default to v1.105.1
+          # Flag to track if we need to reset versioning
+          RESET_VERSION="false"
+          
+          # If no tags found, use default
           if [ -z "$LATEST_TAG" ]; then
             LATEST_TAG="v1.105.1"
+            RESET_VERSION="true"
             echo "No tags found, using default: $LATEST_TAG"
           else
             # Extract version without 'v' prefix
@@ -60,21 +64,23 @@ jobs:
             # New format: MAJOR < 2000 (e.g., 1.105.1)
             if [ "$PART1" -ge 2000 ]; then
               echo "⚠️  Detected old version format: $LATEST_TAG (YYYY.MAJOR.MINOR)"
-              echo "🔄 Resetting to semantic versioning: v1.105.1"
-              LATEST_TAG="v1.105.1"
+              echo "🔄 Will reset to semantic versioning in next release"
+              RESET_VERSION="true"
             else
               echo "✅ Using existing semantic version: $LATEST_TAG"
             fi
           fi
           
           echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "reset_version=$RESET_VERSION" >> $GITHUB_OUTPUT
           echo "Latest tag: $LATEST_TAG"
+          echo "Reset version flag: $RESET_VERSION"
           
           # Extract version numbers (remove 'v' prefix)
           VERSION=${LATEST_TAG#v}
           echo "current_version=$VERSION" >> $GITHUB_OUTPUT
           echo "Extracted version: $VERSION"
-          
+
       - name: Analyze commits for version bump
         id: analyze_commits
         shell: bash
@@ -115,40 +121,49 @@ jobs:
           fi
           
           echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
-          
+
       - name: Calculate new version
         id: calc_version
         shell: bash
         run: |
           CURRENT_VERSION="${{ steps.get_latest_tag.outputs.current_version }}"
+          RESET_VERSION="${{ steps.get_latest_tag.outputs.reset_version }}"
           BUMP_TYPE="${{ github.event.inputs.version_bump || steps.analyze_commits.outputs.bump_type }}"
           
           echo "Current version: $CURRENT_VERSION"
+          echo "Reset version: $RESET_VERSION"
           echo "Bump type: $BUMP_TYPE"
           
-          # Parse current version (format: MAJOR.MINOR.PATCH)
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
-          
-          # Apply semantic version bump
-          case $BUMP_TYPE in
-            major)
-              MAJOR=$((MAJOR + 1))
-              MINOR=0
-              PATCH=0
-              echo "🔴 MAJOR bump: $CURRENT_VERSION → $MAJOR.$MINOR.$PATCH"
-              ;;
-            minor)
-              MINOR=$((MINOR + 1))
-              PATCH=0
-              echo "🟡 MINOR bump: $CURRENT_VERSION → $MAJOR.$MINOR.$PATCH"
-              ;;
-            patch|auto)
-              PATCH=$((PATCH + 1))
-              echo "🟢 PATCH bump: $CURRENT_VERSION → $MAJOR.$MINOR.$PATCH"
-              ;;
-          esac
-          
-          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          # If we need to reset from old version format, use default v1.105.1
+          if [ "$RESET_VERSION" = "true" ]; then
+            echo "🔄 Resetting from old format to semantic versioning"
+            NEW_VERSION="1.105.1"
+            echo "✅ New version set to: $NEW_VERSION"
+          else
+            # Parse current version (format: MAJOR.MINOR.PATCH)
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+            
+            # Apply semantic version bump
+            case $BUMP_TYPE in
+              major)
+                MAJOR=$((MAJOR + 1))
+                MINOR=0
+                PATCH=0
+                echo "🔴 MAJOR bump: $CURRENT_VERSION → $MAJOR.$MINOR.$PATCH"
+                ;;
+              minor)
+                MINOR=$((MINOR + 1))
+                PATCH=0
+                echo "🟡 MINOR bump: $CURRENT_VERSION → $MAJOR.$MINOR.$PATCH"
+                ;;
+              patch|auto)
+                PATCH=$((PATCH + 1))
+                echo "🟢 PATCH bump: $CURRENT_VERSION → $MAJOR.$MINOR.$PATCH"
+                ;;
+            esac
+            
+            NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          fi
           
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "new_tag=v$NEW_VERSION" >> $GITHUB_OUTPUT
