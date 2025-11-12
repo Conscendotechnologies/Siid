@@ -21,8 +21,8 @@
 	"linuxIconName": "siid",
 	"licenseFileName": "LICENSE.rtf",
 	"licenseName": "MIT License",
-	"engineVersion": "1.104.1",
-	"version": "",
+	"engineVersion": "1.105.1",
+	"version": "2025.0.0",
 	"serverGreeting": [],
 	"serverLicense": [
 		"*",

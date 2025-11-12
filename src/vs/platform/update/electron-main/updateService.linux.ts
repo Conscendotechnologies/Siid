@@ -56,7 +56,8 @@ export class LinuxUpdateService extends AbstractUpdateService {
 					// Parse GitHub release response
 					const platform = `linux-${process.arch}`;
 					this.logService.trace('[Update] Parsing GitHub response for platform:', platform);
-					update = parseGitHubReleaseToUpdate(response, platform, this.productService);
+					update = parseGitHubReleaseToUpdate(response, platform, this.productService, this.logService);
+					this.logService.trace('[Update] GitHub parsed update object:', update);
 				} else {
 					// Original Microsoft format
 					update = response;

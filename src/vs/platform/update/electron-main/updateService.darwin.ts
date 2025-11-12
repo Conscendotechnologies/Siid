@@ -116,7 +116,8 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 					this.logService.trace('[Update] Received GitHub response:', response);
 					const platform = `darwin-${process.arch}`;
 					this.logService.trace('[Update] Parsing GitHub response for platform:', platform);
-					const update = parseGitHubReleaseToUpdate(response, platform, this.productService);
+					const update = parseGitHubReleaseToUpdate(response, platform, this.productService, this.logService);
+					this.logService.trace('[Update] GitHub parsed update object:', update);
 
 					if (!update || !update.url || !update.version || !update.productVersion) {
 						this.logService.trace('[Update] No update available or invalid update data');
