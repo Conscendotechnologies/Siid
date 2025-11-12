@@ -47,6 +47,24 @@ jobs:
           # If no tags found, default to v1.105.1
           if [ -z "$LATEST_TAG" ]; then
             LATEST_TAG="v1.105.1"
+            echo "No tags found, using default: $LATEST_TAG"
+          else
+            # Extract version without 'v' prefix
+            VERSION=${LATEST_TAG#v}
+            
+            # Split version into components
+            IFS='.' read -r PART1 PART2 PART3 <<< "$VERSION"
+            
+            # Check if this is the old YYYY.MAJOR.MINOR format
+            # Old format: year >= 2000 (e.g., 2025.0.0)
+            # New format: MAJOR < 2000 (e.g., 1.105.1)
+            if [ "$PART1" -ge 2000 ]; then
+              echo "⚠️  Detected old version format: $LATEST_TAG (YYYY.MAJOR.MINOR)"
+              echo "🔄 Resetting to semantic versioning: v1.105.1"
+              LATEST_TAG="v1.105.1"
+            else
+              echo "✅ Using existing semantic version: $LATEST_TAG"
+            fi
           fi
           
           echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
