@@ -41,46 +41,42 @@ jobs:
         id: get_latest_tag
         shell: bash
         run: |
-          # Get the latest tag with 'v' prefix, sorted semantically
-          LATEST_TAG=$(git tag -l "v*.*.*" --sort=-version:refname | head -n 1)
+          echo "🔍 Searching for latest semantic version tag (ignoring YYYY.x.x format)..."
           
-          # Flag to track if we need to reset versioning
-          RESET_VERSION="false"
+          # Get all v*.*.* tags
+          ALL_TAGS=$(git tag -l "v*.*.*")
           
-          # If no tags found, use default
-          if [ -z "$LATEST_TAG" ]; then
-            LATEST_TAG="v1.105.1"
-            RESET_VERSION="true"
-            echo "No tags found, using default: $LATEST_TAG"
-          else
-            # Extract version without 'v' prefix
-            VERSION=${LATEST_TAG#v}
-            
-            # Split version into components
-            IFS='.' read -r PART1 PART2 PART3 <<< "$VERSION"
-            
-            # Check if this is the old YYYY.MAJOR.MINOR format
-            # Old format: year >= 2000 (e.g., 2025.0.0)
-            # New format: MAJOR < 2000 (e.g., 1.105.1)
-            if [ "$PART1" -ge 2000 ]; then
-              echo "⚠️  Detected old version format: $LATEST_TAG (YYYY.MAJOR.MINOR)"
-              echo "🔄 Will reset to semantic versioning in next release"
-              RESET_VERSION="true"
-            else
-              echo "✅ Using existing semantic version: $LATEST_TAG"
+          # Filter to ONLY semantic versions (MAJOR < 2000)
+          LATEST_TAG=$(echo "$ALL_TAGS" | while read tag; do
+            if [ -n "$tag" ]; then
+              VERSION=${tag#v}
+              IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+              # Only include tags where MAJOR < 2000 (semantic versions)
+              if [ "$MAJOR" -eq "$MAJOR" ] 2>/dev/null && [ "$MAJOR" -lt 2000 ]; then
+                echo "$tag"
+              fi
             fi
-          fi
+          done | sort -t. -k1,1n -k2,2n -k3,3n | tail -n 1)
           
-          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
-          echo "reset_version=$RESET_VERSION" >> $GITHUB_OUTPUT
-          echo "Latest tag: $LATEST_TAG"
-          echo "Reset version flag: $RESET_VERSION"
+          # If no semantic version found, start fresh
+          if [ -z "$LATEST_TAG" ]; then
+            echo "⚠️  No semantic version tags found"
+            echo "✨ Starting fresh with v1.105.1"
+            LATEST_TAG="v1.105.1"
+            IS_FIRST_RELEASE="true"
+          else
+            echo "✅ Found latest semantic version: $LATEST_TAG"
+            IS_FIRST_RELEASE="false"
+          fi
           
           # Extract version numbers (remove 'v' prefix)
           VERSION=${LATEST_TAG#v}
+          
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
           echo "current_version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Extracted version: $VERSION"
-
+          echo "is_first_release=$IS_FIRST_RELEASE" >> $GITHUB_OUTPUT
+          echo ""
+          echo "📌 Using version: $LATEST_TAG"
       - name: Analyze commits for version bump
         id: analyze_commits
         shell: bash
