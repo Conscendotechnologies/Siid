@@ -1,9 +1,9 @@
-name: Build and Release Alpexium IDE (Auto-Version)
+name: Build and Release Alpexium IDE (SemVer)
 on:
   push:
     branches:
       - main-stable
-  workflow_dispatch:  # Manual trigger with optional version override
+  workflow_dispatch:
     inputs:
       version_bump:
         description: 'Version bump type (auto/major/minor/patch)'
@@ -29,7 +29,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Full history for changelog
+          fetch-depth: 0
           
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -42,32 +42,58 @@ jobs:
         shell: bash
         run: |
           # Get the latest tag with 'v' prefix, sorted semantically
-          # Filter to only tags matching v*.*.* pattern
           LATEST_TAG=$(git tag -l "v*.*.*" --sort=-version:refname | head -n 1)
           
-          # If no v*.*.* tags found, default to v2025.0.0
+          # Flag to track if we need to reset versioning
+          RESET_VERSION="false"
+          
+          # If no tags found, use default
           if [ -z "$LATEST_TAG" ]; then
-            LATEST_TAG="v2025.0.0"
+            LATEST_TAG="v1.105.1"
+            RESET_VERSION="true"
+            echo "No tags found, using default: $LATEST_TAG"
+          else
+            # Extract version without 'v' prefix
+            VERSION=${LATEST_TAG#v}
+            
+            # Split version into components
+            IFS='.' read -r PART1 PART2 PART3 <<< "$VERSION"
+            
+            # Check if this is the old YYYY.MAJOR.MINOR format
+            # Old format: year >= 2000 (e.g., 2025.0.0)
+            # New format: MAJOR < 2000 (e.g., 1.105.1)
+            if [ "$PART1" -ge 2000 ]; then
+              echo "⚠️  Detected old version format: $LATEST_TAG (YYYY.MAJOR.MINOR)"
+              echo "🔄 Will reset to semantic versioning in next release"
+              RESET_VERSION="true"
+            else
+              echo "✅ Using existing semantic version: $LATEST_TAG"
+            fi
           fi
           
           echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "reset_version=$RESET_VERSION" >> $GITHUB_OUTPUT
           echo "Latest tag: $LATEST_TAG"
+          echo "Reset version flag: $RESET_VERSION"
           
           # Extract version numbers (remove 'v' prefix)
           VERSION=${LATEST_TAG#v}
           echo "current_version=$VERSION" >> $GITHUB_OUTPUT
           echo "Extracted version: $VERSION"
-          
+
       - name: Analyze commits for version bump
         id: analyze_commits
         shell: bash
         run: |
           LATEST_TAG="${{ steps.get_latest_tag.outputs.latest_tag }}"
           
-          # Get commits since last tag (only if it's a valid v*.*.* tag)
-          if [[ "$LATEST_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] && git rev-parse "$LATEST_TAG" >/dev/null 2>&1; then
+          # Check if the tag actually exists in the repository
+          if git rev-parse "$LATEST_TAG" >/dev/null 2>&1; then
+            echo "📌 Analyzing commits since existing tag: $LATEST_TAG"
             COMMITS=$(git log $LATEST_TAG..HEAD --pretty=format:"%s" --no-merges)
           else
+            echo "⚠️  Tag $LATEST_TAG does not exist in repository"
+            echo "📝 Analyzing recent commits (last 20)"
             COMMITS=$(git log --pretty=format:"%s" --no-merges | head -20)
           fi
           
@@ -89,59 +115,54 @@ jobs:
           elif echo "$COMMITS" | grep -qiE "^(fix|perf|refactor|docs|chore|style|test)(\(.*\))?:"; then
             BUMP_TYPE="patch"
             echo "🟢 Fix/improvement detected → PATCH version bump"
-          # No conventional commits found
           else
             BUMP_TYPE="patch"
             echo "⚪ No conventional commits → default PATCH version bump"
           fi
           
           echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
-          
+
       - name: Calculate new version
         id: calc_version
         shell: bash
         run: |
           CURRENT_VERSION="${{ steps.get_latest_tag.outputs.current_version }}"
+          RESET_VERSION="${{ steps.get_latest_tag.outputs.reset_version }}"
           BUMP_TYPE="${{ github.event.inputs.version_bump || steps.analyze_commits.outputs.bump_type }}"
           
           echo "Current version: $CURRENT_VERSION"
+          echo "Reset version: $RESET_VERSION"
           echo "Bump type: $BUMP_TYPE"
           
-          # Parse current version (format: YEAR.MAJOR.MINOR)
-          IFS='.' read -r YEAR MAJOR MINOR <<< "$CURRENT_VERSION"
-          
-          # Get current year
-          CURRENT_YEAR=$(date +'%Y')
-          
-          # If year changed, reset to YEAR.0.0
-          if [ "$YEAR" != "$CURRENT_YEAR" ]; then
-            NEW_VERSION="$CURRENT_YEAR.0.0"
-            echo "📅 New year detected! Resetting to $NEW_VERSION"
+          # If we need to reset from old version format, use default v1.105.1
+          if [ "$RESET_VERSION" = "true" ]; then
+            echo "🔄 Resetting from old format to semantic versioning"
+            NEW_VERSION="1.105.1"
+            echo "✅ New version set to: $NEW_VERSION"
           else
-            # Apply version bump
+            # Parse current version (format: MAJOR.MINOR.PATCH)
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+            
+            # Apply semantic version bump
             case $BUMP_TYPE in
               major)
                 MAJOR=$((MAJOR + 1))
                 MINOR=0
-                NEW_VERSION="$YEAR.$MAJOR.$MINOR"
-                echo "🔴 MAJOR bump: $CURRENT_VERSION → $NEW_VERSION"
+                PATCH=0
+                echo "🔴 MAJOR bump: $CURRENT_VERSION → $MAJOR.$MINOR.$PATCH"
                 ;;
               minor)
                 MINOR=$((MINOR + 1))
-                NEW_VERSION="$YEAR.$MAJOR.$MINOR"
-                echo "🟡 MINOR bump: $CURRENT_VERSION → $NEW_VERSION"
+                PATCH=0
+                echo "🟡 MINOR bump: $CURRENT_VERSION → $MAJOR.$MINOR.$PATCH"
                 ;;
-              patch)
-                # For patch, we increment the minor as patch in our YEAR.MAJOR.MINOR scheme
-                MINOR=$((MINOR + 1))
-                NEW_VERSION="$YEAR.$MAJOR.$MINOR"
-                echo "🟢 PATCH bump: $CURRENT_VERSION → $NEW_VERSION"
-                ;;
-              *)
-                NEW_VERSION="$CURRENT_VERSION"
-                echo "⚪ No bump, keeping: $NEW_VERSION"
+              patch|auto)
+                PATCH=$((PATCH + 1))
+                echo "🟢 PATCH bump: $CURRENT_VERSION → $MAJOR.$MINOR.$PATCH"
                 ;;
             esac
+            
+            NEW_VERSION="$MAJOR.$MINOR.$PATCH"
           fi
           
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
@@ -153,14 +174,8 @@ jobs:
         run: |
           NEW_TAG="${{ steps.calc_version.outputs.new_tag }}"
           
-          # Also check for release- prefix variant
-          RELEASE_TAG="release-${NEW_TAG#v}"
-          
           if git rev-parse "$NEW_TAG" >/dev/null 2>&1; then
             echo "⚠️  Tag $NEW_TAG already exists!"
-            echo "version_exists=true" >> $GITHUB_OUTPUT
-          elif git rev-parse "$RELEASE_TAG" >/dev/null 2>&1; then
-            echo "⚠️  Tag $RELEASE_TAG already exists!"
             echo "version_exists=true" >> $GITHUB_OUTPUT
           else
             echo "✅ Tag $NEW_TAG is available"
@@ -195,10 +210,8 @@ jobs:
         if: steps.check_version.outputs.version_exists == 'false'
         shell: pwsh
         run: |
-          # Create output directory
           New-Item -ItemType Directory -Force -Path ./release-output
           
-          # Copy and rename User Setup
           $userSetupPath = ".build/win32-x64/user-setup/SIIDSetup.exe"
           if (Test-Path $userSetupPath) {
             Copy-Item $userSetupPath -Destination "./release-output/AlpexiumIDE-v${{ steps.calc_version.outputs.new_version }}-UserSetup.exe"
@@ -208,7 +221,6 @@ jobs:
             exit 1
           }
           
-          # Copy and rename System Setup
           $systemSetupPath = ".build/win32-x64/system-setup/SIIDSetup.exe"
           if (Test-Path $systemSetupPath) {
             Copy-Item $systemSetupPath -Destination "./release-output/AlpexiumIDE-v${{ steps.calc_version.outputs.new_version }}-SystemSetup.exe"
@@ -241,51 +253,28 @@ jobs:
         shell: bash
         run: |
           LATEST_TAG="${{ steps.get_latest_tag.outputs.latest_tag }}"
-          NEW_TAG="${{ steps.calc_version.outputs.new_tag }}"
           
-          echo "# Changelog for $NEW_TAG" > changelog.md
-          echo "" >> changelog.md
-          
-          # Check if LATEST_TAG is a valid v*.*.* tag
-          if [[ "$LATEST_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] && git rev-parse "$LATEST_TAG" >/dev/null 2>&1; then
-            echo "## Changes since $LATEST_TAG" >> changelog.md
-            echo "" >> changelog.md
-            
-            # Categorize commits using conventional commits
-            echo "### 🚀 Features" >> changelog.md
-            git log $LATEST_TAG..HEAD --pretty=format:"- %s (%h)" --no-merges | grep -E "^- feat(\(.*\))?:" || echo "- No new features"
-            echo "" >> changelog.md
-            echo "" >> changelog.md
-            
-            echo "### 🐛 Bug Fixes" >> changelog.md
-            git log $LATEST_TAG..HEAD --pretty=format:"- %s (%h)" --no-merges | grep -E "^- fix(\(.*\))?:" || echo "- No bug fixes"
-            echo "" >> changelog.md
-            echo "" >> changelog.md
-            
-            echo "### 📚 Documentation" >> changelog.md
-            git log $LATEST_TAG..HEAD --pretty=format:"- %s (%h)" --no-merges | grep -E "^- docs(\(.*\))?:" || echo "- No documentation changes"
-            echo "" >> changelog.md
-            echo "" >> changelog.md
-            
-            echo "### 🔧 Maintenance" >> changelog.md
-            git log $LATEST_TAG..HEAD --pretty=format:"- %s (%h)" --no-merges | grep -E "^- (chore|refactor|perf|test|style)(\(.*\))?:" || echo "- No maintenance changes"
-            echo "" >> changelog.md
-            echo "" >> changelog.md
-            
-            echo "### ⚠️ Breaking Changes" >> changelog.md
-            git log $LATEST_TAG..HEAD --pretty=format:"- %s (%h)" --no-merges | grep -E "^- .*!:" || echo "- No breaking changes"
-            echo "" >> changelog.md
-            
+          # Check if the tag actually exists in the repository
+          if git rev-parse "$LATEST_TAG" >/dev/null 2>&1; then
+            echo "Generating changelog from $LATEST_TAG to HEAD"
+            COMMITS=$(git log $LATEST_TAG..HEAD --pretty=format:"- %s by @%an in %h" --no-merges)
           else
-            echo "## Initial Release" >> changelog.md
-            echo "" >> changelog.md
-            echo "This is the first release of Alpexium IDE." >> changelog.md
+            echo "Tag $LATEST_TAG does not exist. Generating changelog from all commits."
+            COMMITS=$(git log --pretty=format:"- %s by @%an in %h" --no-merges | head -20)
           fi
           
-          # Read changelog into output
-          CHANGELOG_CONTENT=$(cat changelog.md)
+          # Check if there are any commits
+          if [ -z "$COMMITS" ]; then
+            COMMITS="- No changes since last release"
+          fi
+          
+          # Save to file
+          echo "$COMMITS" > changelog.txt
+          
+          # Read into output
+          CHANGELOG=$(cat changelog.txt)
           echo "changelog<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
           
       - name: Get contributors
@@ -294,11 +283,11 @@ jobs:
         run: |
           LATEST_TAG="${{ steps.get_latest_tag.outputs.latest_tag }}"
           
-          # Check if LATEST_TAG is a valid v*.*.* tag
-          if [[ "$LATEST_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] && git rev-parse "$LATEST_TAG" >/dev/null 2>&1; then
-            CONTRIBUTORS=$(git log $LATEST_TAG..HEAD --pretty=format:"%an" --no-merges | sort -u | sed 's/^/@/' | paste -sd ", " -)
+          # Check if the tag actually exists in the repository
+          if git rev-parse "$LATEST_TAG" >/dev/null 2>&1; then
+            CONTRIBUTORS=$(git log $LATEST_TAG..HEAD --pretty=format:"%an" --no-merges | sort -u | sed 's/^/@/' | paste -sd "," - | sed 's/,/, /g')
           else
-            CONTRIBUTORS=$(git log --pretty=format:"%an" --no-merges | sort -u | head -10 | sed 's/^/@/' | paste -sd ", " -)
+            CONTRIBUTORS=$(git log --pretty=format:"%an" --no-merges | sort -u | head -10 | sed 's/^/@/' | paste -sd "," - | sed 's/,/, /g')
           fi
           
           if [ -z "$CONTRIBUTORS" ]; then
@@ -311,54 +300,52 @@ jobs:
         if: steps.check_version.outputs.version_exists == 'false'
         uses: softprops/action-gh-release@v1
         with:
-          name: "Alpexium IDE ${{ steps.calc_version.outputs.new_tag }}"
+          name: "Alpexium IDE v${{ steps.calc_version.outputs.new_version }}"
           tag_name: ${{ steps.calc_version.outputs.new_tag }}
           draft: false
           prerelease: ${{ github.event.inputs.prerelease || 'false' }}
           generate_release_notes: false
           body: |
-            # 🎉 Alpexium IDE ${{ steps.calc_version.outputs.new_tag }}
+            ## Alpexium IDE Installers
             
             **Build Date:** ${{ steps.timestamp.outputs.build_date }}
+            **Version:** v${{ steps.calc_version.outputs.new_version }}
             **Version Bump:** ${{ steps.analyze_commits.outputs.bump_type }}
             
             ---
             
-            ## 📦 Downloads
+            ### 📦 Downloads
             
             | Installer | Description |
             |-----------|-------------|
-            | **AlpexiumIDE-${{ steps.calc_version.outputs.new_tag }}-UserSetup.exe** | User installation (current user only, no admin required) |
-            | **AlpexiumIDE-${{ steps.calc_version.outputs.new_tag }}-SystemSetup.exe** | System installation (all users, requires administrator) |
+            | **AlpexiumIDE-v${{ steps.calc_version.outputs.new_version }}-UserSetup.exe** | User installation (current user only, no admin required) |
+            | **AlpexiumIDE-v${{ steps.calc_version.outputs.new_version }}-SystemSetup.exe** | System installation (all users, requires administrator) |
             
-            ### 🔐 Verify Your Download
-            SHA-256 checksums are provided for each installer. Verify integrity before installation.
+            ### 🔐 Checksums
+            Use the .sha256 files to verify your download integrity.
             
             ---
+            
+            ### 📝 What's Changed
             
             ${{ steps.changelog.outputs.changelog }}
             
+            **Full Changelog:** ${{ github.server_url }}/${{ github.repository }}/compare/${{ steps.get_latest_tag.outputs.latest_tag }}...${{ steps.calc_version.outputs.new_tag }}
+            
             ---
             
-            ## 🔗 Links
+            ### 👥 Contributors
             
-            - **Full Changelog:** [${{ steps.get_latest_tag.outputs.latest_tag }}...${{ steps.calc_version.outputs.new_tag }}](https://github.com/${{ github.repository }}/compare/${{ steps.get_latest_tag.outputs.latest_tag }}...${{ steps.calc_version.outputs.new_tag }})
-            - **Documentation:** [docs.alpexium.com](https://docs.alpexium.com)
-            - **Report Issues:** [GitHub Issues](https://github.com/${{ github.repository }}/issues)
-            
-            ## 👥 Contributors
-            
-            Thank you to all contributors who made this release possible:
             ${{ steps.contributors.outputs.contributors }}
             
             ---
             
-            ### 📋 Version Scheme
+            ### 📋 Version Information
             
-            Alpexium IDE follows **Semantic Versioning** with year prefix: `YEAR.MAJOR.MINOR`
+            Alpexium IDE follows **Semantic Versioning**: `MAJOR.MINOR.PATCH`
             - **MAJOR**: Breaking changes or significant new features
-            - **MINOR**: New features (backward compatible) or bug fixes
-            - Version resets at year boundary (e.g., 2025.x.x → 2026.0.0)
+            - **MINOR**: New features (backward compatible)
+            - **PATCH**: Bug fixes and minor improvements
           files: |
             release-output/*.exe
             release-output/*.sha256
@@ -369,11 +356,10 @@ jobs:
         if: steps.check_version.outputs.version_exists == 'false'
         uses: actions/upload-artifact@v4
         with:
-          name: alpexium-ide-${{ steps.calc_version.outputs.new_tag }}-${{ steps.timestamp.outputs.build_date_compact }}
+          name: alpexium-ide-installers-v${{ steps.calc_version.outputs.new_version }}
           path: |
             release-output/*.exe
             release-output/*.sha256
-            changelog.md
           retention-days: 90
           
       - name: Summary
