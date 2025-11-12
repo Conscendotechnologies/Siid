@@ -77,24 +77,25 @@ jobs:
           echo "is_first_release=$IS_FIRST_RELEASE" >> $GITHUB_OUTPUT
           echo ""
           echo "📌 Using version: $LATEST_TAG"
+          
       - name: Analyze commits for version bump
         id: analyze_commits
         shell: bash
         run: |
           LATEST_TAG="${{ steps.get_latest_tag.outputs.latest_tag }}"
+          IS_FIRST_RELEASE="${{ steps.get_latest_tag.outputs.is_first_release }}"
           
-          # Check if the tag actually exists in the repository
-          if git rev-parse "$LATEST_TAG" >/dev/null 2>&1; then
-            echo "📌 Analyzing commits since existing tag: $LATEST_TAG"
-            COMMITS=$(git log $LATEST_TAG..HEAD --pretty=format:"%s" --no-merges)
+          if [ "$IS_FIRST_RELEASE" = "true" ]; then
+            echo "🎉 First semantic version release - analyzing recent commits"
+            COMMITS=$(git log --pretty=format:"%s" --no-merges -20)
           else
-            echo "⚠️  Tag $LATEST_TAG does not exist in repository"
-            echo "📝 Analyzing recent commits (last 20)"
-            COMMITS=$(git log --pretty=format:"%s" --no-merges | head -20)
+            echo "📌 Analyzing commits since: $LATEST_TAG"
+            COMMITS=$(git log $LATEST_TAG..HEAD --pretty=format:"%s" --no-merges)
           fi
           
-          echo "Analyzing commits:"
+          echo "Commits analyzed:"
           echo "$COMMITS"
+          echo ""
           
           # Determine bump type based on conventional commits
           BUMP_TYPE="patch"
@@ -117,24 +118,24 @@ jobs:
           fi
           
           echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
-
+          
       - name: Calculate new version
         id: calc_version
         shell: bash
         run: |
           CURRENT_VERSION="${{ steps.get_latest_tag.outputs.current_version }}"
-          RESET_VERSION="${{ steps.get_latest_tag.outputs.reset_version }}"
+          IS_FIRST_RELEASE="${{ steps.get_latest_tag.outputs.is_first_release }}"
           BUMP_TYPE="${{ github.event.inputs.version_bump || steps.analyze_commits.outputs.bump_type }}"
           
           echo "Current version: $CURRENT_VERSION"
-          echo "Reset version: $RESET_VERSION"
+          echo "First release: $IS_FIRST_RELEASE"
           echo "Bump type: $BUMP_TYPE"
+          echo ""
           
-          # If we need to reset from old version format, use default v1.105.1
-          if [ "$RESET_VERSION" = "true" ]; then
-            echo "🔄 Resetting from old format to semantic versioning"
+          if [ "$IS_FIRST_RELEASE" = "true" ]; then
+            # This is the first semantic version release
             NEW_VERSION="1.105.1"
-            echo "✅ New version set to: $NEW_VERSION"
+            echo "🎉 First semantic version release: $NEW_VERSION"
           else
             # Parse current version (format: MAJOR.MINOR.PATCH)
             IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
@@ -249,14 +250,14 @@ jobs:
         shell: bash
         run: |
           LATEST_TAG="${{ steps.get_latest_tag.outputs.latest_tag }}"
+          IS_FIRST_RELEASE="${{ steps.get_latest_tag.outputs.is_first_release }}"
           
-          # Check if the tag actually exists in the repository
-          if git rev-parse "$LATEST_TAG" >/dev/null 2>&1; then
-            echo "Generating changelog from $LATEST_TAG to HEAD"
-            COMMITS=$(git log $LATEST_TAG..HEAD --pretty=format:"- %s by @%an in %h" --no-merges)
+          if [ "$IS_FIRST_RELEASE" = "true" ]; then
+            echo "🎉 First semantic version release - showing recent commits"
+            COMMITS=$(git log --pretty=format:"- %s by @%an in %h" --no-merges -20)
           else
-            echo "Tag $LATEST_TAG does not exist. Generating changelog from all commits."
-            COMMITS=$(git log --pretty=format:"- %s by @%an in %h" --no-merges | head -20)
+            echo "📋 Generating changelog from $LATEST_TAG to HEAD"
+            COMMITS=$(git log $LATEST_TAG..HEAD --pretty=format:"- %s by @%an in %h" --no-merges)
           fi
           
           # Check if there are any commits
@@ -278,12 +279,12 @@ jobs:
         shell: bash
         run: |
           LATEST_TAG="${{ steps.get_latest_tag.outputs.latest_tag }}"
+          IS_FIRST_RELEASE="${{ steps.get_latest_tag.outputs.is_first_release }}"
           
-          # Check if the tag actually exists in the repository
-          if git rev-parse "$LATEST_TAG" >/dev/null 2>&1; then
-            CONTRIBUTORS=$(git log $LATEST_TAG..HEAD --pretty=format:"%an" --no-merges | sort -u | sed 's/^/@/' | paste -sd "," - | sed 's/,/, /g')
-          else
+          if [ "$IS_FIRST_RELEASE" = "true" ]; then
             CONTRIBUTORS=$(git log --pretty=format:"%an" --no-merges | sort -u | head -10 | sed 's/^/@/' | paste -sd "," - | sed 's/,/, /g')
+          else
+            CONTRIBUTORS=$(git log $LATEST_TAG..HEAD --pretty=format:"%an" --no-merges | sort -u | sed 's/^/@/' | paste -sd "," - | sed 's/,/, /g')
           fi
           
           if [ -z "$CONTRIBUTORS" ]; then
