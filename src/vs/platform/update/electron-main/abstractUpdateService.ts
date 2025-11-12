@@ -39,16 +39,18 @@ interface GitHubRelease {
 	prerelease: boolean;
 }
 
-export function parseGitHubReleaseToUpdate(release: GitHubRelease, platform: string, productService: IProductService): IUpdate | null {
+export function parseGitHubReleaseToUpdate(release: GitHubRelease, platform: string, productService: IProductService, logService?: ILogService): IUpdate | null {
 
 	// Skip prereleases unless explicitly allowed
 	if (release.prerelease) {
+		logService?.trace('[Update] GitHub release is prerelease - skipping:', release.tag_name);
 		return null;
 	}
 
 	// Find the appropriate asset for this platform
-	const asset = findAssetForPlatform(release.assets, platform, productService);
+	const asset = findAssetForPlatform(release.assets, platform, productService, logService);
 	if (!asset) {
+		logService?.trace('[Update] GitHub release has no suitable asset for platform:', platform, 'release assets:', release.assets.map(a => a.name));
 		return null;
 	}
 
@@ -63,11 +65,12 @@ export function parseGitHubReleaseToUpdate(release: GitHubRelease, platform: str
 		url: asset.browser_download_url,
 		sha256hash: asset.digest?.replace('sha256:', '') // Remove sha256: prefix if present
 	};
+	logService?.trace('[Update] Parsed GitHub release to update:', update);
 
 	return update;
 }
 
-function findAssetForPlatform(assets: GitHubAsset[], platform: string, productService: IProductService): GitHubAsset | null {
+function findAssetForPlatform(assets: GitHubAsset[], platform: string, productService: IProductService, logService?: ILogService): GitHubAsset | null {
 
 	// For Windows, prefer user setup over system setup
 	if (platform.startsWith('win32')) {
@@ -81,6 +84,7 @@ function findAssetForPlatform(assets: GitHubAsset[], platform: string, productSe
 				userAsset = assets.find(asset => asset.name.includes('UserSetup.exe'));
 			}
 			if (userAsset) {
+				logService?.trace('[Update] Found User setup asset by name:', userAsset.name);
 				return userAsset;
 			}
 		} else {
@@ -90,6 +94,7 @@ function findAssetForPlatform(assets: GitHubAsset[], platform: string, productSe
 				systemAsset = assets.find(asset => asset.name.includes('SystemSetup.exe'));
 			}
 			if (systemAsset) {
+				logService?.trace('[Update] Found System setup asset by name:', systemAsset.name);
 				return systemAsset;
 			}
 		}
@@ -97,6 +102,7 @@ function findAssetForPlatform(assets: GitHubAsset[], platform: string, productSe
 		// Fallback to any .exe file (excluding .sha256 files)
 		const exeAsset = assets.find(asset => asset.name.endsWith('.exe') && !asset.name.endsWith('.sha256'));
 		if (exeAsset) {
+			logService?.trace('[Update] Found fallback .exe asset:', exeAsset.name);
 			return exeAsset;
 		}
 	}
@@ -105,6 +111,7 @@ function findAssetForPlatform(assets: GitHubAsset[], platform: string, productSe
 	if (platform.includes('linux')) {
 		const tarAsset = assets.find(asset => asset.name.endsWith('.tar.gz'));
 		if (tarAsset) {
+			logService?.trace('[Update] Found tar.gz asset:', tarAsset.name);
 			return tarAsset;
 		}
 	}
@@ -113,6 +120,7 @@ function findAssetForPlatform(assets: GitHubAsset[], platform: string, productSe
 	if (platform.includes('darwin')) {
 		const dmgAsset = assets.find(asset => asset.name.endsWith('.dmg'));
 		if (dmgAsset) {
+			logService?.trace('[Update] Found dmg asset:', dmgAsset.name);
 			return dmgAsset;
 		}
 	}
