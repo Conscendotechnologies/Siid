@@ -44,9 +44,9 @@ jobs:
           # Get the latest tag with 'v' prefix, sorted semantically
           LATEST_TAG=$(git tag -l "v*.*.*" --sort=-version:refname | head -n 1)
           
-          # If no tags found, default to v1.106.0
+          # If no tags found, default to v1.105.1
           if [ -z "$LATEST_TAG" ]; then
-            LATEST_TAG="v1.106.0"
+            LATEST_TAG="v1.105.1"
           fi
           
           echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
