@@ -13,6 +13,8 @@ import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
 import { AvailableForDownload, DisablementReason, IUpdateService, State, StateType, UpdateType, IUpdate } from '../common/update.js';
+import { gt as semverGt } from '../../../base/common/semver/semver.js';
+import { streamToBuffer } from '../../../base/common/buffer.js';
 
 export function createUpdateURL(platform: string, quality: string, productService: IProductService): string {
 	// Check if using GitHub API for updates
@@ -57,6 +59,19 @@ export function parseGitHubReleaseToUpdate(release: GitHubRelease, platform: str
 
 	// Parse version from tag (assuming v2025.1.0 format after user updates)
 	const version = release.tag_name.startsWith('v') ? release.tag_name.substring(1) : release.tag_name;
+
+	// Compare versions to ensure the release is actually newer than current version
+	const currentVersion = productService.version;
+	try {
+		if (!semverGt(version, currentVersion)) {
+			logService?.trace('[Update] GitHub release version is not newer than current version:', { releaseVersion: version, currentVersion });
+			return null;
+		}
+	} catch (error) {
+		logService?.trace('[Update] Failed to compare versions:', { releaseVersion: version, currentVersion, error });
+		// If version comparison fails, err on the side of caution and don't update
+		return null;
+	}
 
 	const update: IUpdate = {
 		version: release.tag_name, // Keep the full tag name
@@ -318,6 +333,36 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return false;
 		}
 
+		// Handle GitHub-based updates differently
+		if (this.productService.updateUrl && this.productService.updateUrl.includes('api.github.com')) {
+			try {
+				const context = await this.requestService.request({ url: this.url }, CancellationToken.None);
+				const buffer = await streamToBuffer(context.stream);
+				const release: GitHubRelease = JSON.parse(buffer.toString());
+
+				// Skip prereleases unless explicitly allowed
+				if (release.prerelease) {
+					this.logService?.trace('[Update] Latest GitHub release is prerelease - not considering as latest');
+					return false;
+				}
+
+				// Parse version from tag
+				const latestVersion = release.tag_name.startsWith('v') ? release.tag_name.substring(1) : release.tag_name;
+				const currentVersion = this.productService.version;
+
+				// Compare versions
+				const isLatest = !semverGt(latestVersion, currentVersion);
+				this.logService?.trace('[Update] Version comparison result:', { latestVersion, currentVersion, isLatest });
+
+				return isLatest;
+			} catch (error) {
+				this.logService.error('update#isLatestVersion(): failed to check GitHub updates');
+				this.logService.error(error);
+				return undefined;
+			}
+		}
+
+		// Original Microsoft update server logic
 		try {
 			const context = await this.requestService.request({ url: this.url }, CancellationToken.None);
 			// The update server replies with 204 (No Content) when no
