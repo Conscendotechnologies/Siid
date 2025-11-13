@@ -2,7 +2,7 @@ name: Build and Release Alpexium IDE (SemVer)
 on:
   push:
     branches:
-      - main-stable
+      - update-testing-from-main-stable
   workflow_dispatch:
     inputs:
       version_bump:
