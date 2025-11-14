@@ -19,7 +19,7 @@ import { IEnvironmentService } from '../../../../platform/environment/common/env
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { asTextOrError, IRequestService } from '../../../../platform/request/common/request.js';
+import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from '../../markdown/browser/markdownDocumentRenderer.js';
 import { WebviewInput } from '../../webviewPanel/browser/webviewEditorInput.js';
 import { IWebviewWorkbenchService } from '../../webviewPanel/browser/webviewWorkbenchService.js';
@@ -36,6 +36,17 @@ import { Schemas } from '../../../../base/common/network.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { dirname } from '../../../../base/common/resources.js';
 import { asWebviewUri } from '../../webview/common/webview.js';
+
+interface GitHubReleaseResponse {
+	body: string;
+	name: string;
+	tag_name: string;
+	html_url: string;
+	published_at: string;
+	author?: {
+		login: string;
+	};
+}
 
 export class ReleaseNotesManager {
 	private readonly _simpleSettingRenderer: SimpleSettingRenderer;
@@ -86,7 +97,7 @@ export class ReleaseNotesManager {
 				return dirname(currentFileUri);
 			}
 		}
-		return URI.parse('https://code.visualstudio.com/raw');
+		return URI.parse('https://github.com/Conscendotechnologies/AIpexium2');
 	}
 
 	public async show(version: string, useCurrentFile: boolean): Promise<boolean> {
@@ -150,16 +161,15 @@ export class ReleaseNotesManager {
 			throw new Error('not found');
 		}
 
-		const versionLabel = match[1].replace(/\./g, '_');
-		const baseUrl = 'https://code.visualstudio.com/raw';
-		const url = `${baseUrl}/v${versionLabel}.md`;
+		const baseUrl = `${this._productService.updateUrl}/latest?bg=true`;
+		const url = baseUrl;
 		const unassigned = nls.localize('unassigned', "unassigned");
 
 		const escapeMdHtml = (text: string): string => {
 			return escape(text).replace(/\\/g, '\\\\');
 		};
 
-		const patchKeybindings = (text: string): string => {
+		const patchKeybindings = (text: string) => {
 			const kb = (match: string, kb: string) => {
 				const keybinding = this._keybindingService.lookupKeybinding(kb);
 
@@ -210,7 +220,35 @@ export class ReleaseNotesManager {
 					const file = this._codeEditorService.getActiveCodeEditor()?.getModel()?.getValue();
 					text = file ? file.substring(file.indexOf('#')) : undefined;
 				} else {
-					text = await asTextOrError(await this._requestService.request({ url }, CancellationToken.None));
+					const response = await asJson<GitHubReleaseResponse>(await this._requestService.request({ url }, CancellationToken.None));
+					if (!response) {
+						throw new Error('Failed to fetch release notes');
+					}
+
+					// Build enhanced release notes with metadata
+					let enhancedText = `# ${response.name || 'Release Notes'}\n\n`;
+
+					// Add version and publication info
+					if (response.tag_name) {
+						enhancedText += `**Version:** ${response.tag_name}\n`;
+					}
+					if (response.published_at) {
+						const publishDate = new Date(response.published_at).toLocaleDateString();
+						enhancedText += `**Published:** ${publishDate}\n`;
+					}
+					if (response.author?.login) {
+						enhancedText += `**Author:** ${response.author.login}\n`;
+					}
+					if (response.html_url) {
+						enhancedText += `**View on GitHub:** [${response.html_url}](${response.html_url})\n`;
+					}
+
+					enhancedText += '\n---\n\n';
+
+					// Add the actual release notes body
+					enhancedText += response.body || 'No release notes available.';
+
+					text = enhancedText;
 				}
 			} catch {
 				throw new Error('Failed to fetch release notes');
