@@ -164,6 +164,27 @@ jobs:
           
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "new_tag=v$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update package.json version
+        if: steps.check_version.outputs.version_exists == 'false'
+        shell: bash
+        run: |
+          NEW_VERSION="${{ steps.calc_version.outputs.new_version }}"
+          echo "📝 Updating package.json to version $NEW_VERSION"
+          
+          # Update version in package.json
+          npm version $NEW_VERSION --no-git-tag-version
+          
+          # Verify the change
+          UPDATED_VERSION=$(node -p "require('./package.json').version")
+          echo "✅ package.json version updated to: $UPDATED_VERSION"
+          
+          # Commit and push the version change
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
+          git push
           
       - name: Check if version already exists
         id: check_version
