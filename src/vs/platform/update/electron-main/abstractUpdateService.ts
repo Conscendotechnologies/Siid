@@ -46,6 +46,7 @@ export function parseGitHubReleaseToUpdate(release: GitHubRelease, platform: str
 	// Skip prereleases unless explicitly allowed
 	if (release.prerelease) {
 		logService?.trace('[Update] GitHub release is prerelease - skipping:', release.tag_name);
+		console.log('[UpdateService] GitHub release is prerelease - skipping:', release.tag_name);
 		return null;
 	}
 
@@ -53,6 +54,7 @@ export function parseGitHubReleaseToUpdate(release: GitHubRelease, platform: str
 	const asset = findAssetForPlatform(release.assets, platform, productService, logService);
 	if (!asset) {
 		logService?.trace('[Update] GitHub release has no suitable asset for platform:', platform, 'release assets:', release.assets.map(a => a.name));
+		console.log('[UpdateService] GitHub release has no suitable asset for platform:', platform, 'release assets:', release.assets.map(a => a.name));
 		return null;
 	}
 
@@ -65,10 +67,12 @@ export function parseGitHubReleaseToUpdate(release: GitHubRelease, platform: str
 	try {
 		if (!semverGt(version, currentVersion)) {
 			logService?.trace('[Update] GitHub release version is not newer than current version:', { releaseVersion: version, currentVersion });
+			console.log('[UpdateService] GitHub release version is not newer than current version:', { releaseVersion: version, currentVersion });
 			return null;
 		}
 	} catch (error) {
 		logService?.trace('[Update] Failed to compare versions:', { releaseVersion: version, currentVersion, error });
+		console.log('[UpdateService] Failed to compare versions:', { releaseVersion: version, currentVersion, error });
 		// If version comparison fails, err on the side of caution and don't update
 		return null;
 	}
@@ -81,6 +85,7 @@ export function parseGitHubReleaseToUpdate(release: GitHubRelease, platform: str
 		sha256hash: asset.digest?.replace('sha256:', '') // Remove sha256: prefix if present
 	};
 	logService?.trace('[Update] Parsed GitHub release to update:', update);
+	console.log('[UpdateService] Parsed GitHub release to update:', update);
 
 	return update;
 }
@@ -100,6 +105,7 @@ function findAssetForPlatform(assets: GitHubAsset[], platform: string, productSe
 			}
 			if (userAsset) {
 				logService?.trace('[Update] Found User setup asset by name:', userAsset.name);
+				console.log('[UpdateService] Found User setup asset by name:', userAsset.name);
 				return userAsset;
 			}
 		} else {
@@ -110,6 +116,7 @@ function findAssetForPlatform(assets: GitHubAsset[], platform: string, productSe
 			}
 			if (systemAsset) {
 				logService?.trace('[Update] Found System setup asset by name:', systemAsset.name);
+				console.log('[UpdateService] Found System setup asset by name:', systemAsset.name);
 				return systemAsset;
 			}
 		}
@@ -118,6 +125,7 @@ function findAssetForPlatform(assets: GitHubAsset[], platform: string, productSe
 		const exeAsset = assets.find(asset => asset.name.endsWith('.exe') && !asset.name.endsWith('.sha256'));
 		if (exeAsset) {
 			logService?.trace('[Update] Found fallback .exe asset:', exeAsset.name);
+			console.log('[UpdateService] Found fallback .exe asset:', exeAsset.name);
 			return exeAsset;
 		}
 	}
@@ -127,6 +135,7 @@ function findAssetForPlatform(assets: GitHubAsset[], platform: string, productSe
 		const tarAsset = assets.find(asset => asset.name.endsWith('.tar.gz'));
 		if (tarAsset) {
 			logService?.trace('[Update] Found tar.gz asset:', tarAsset.name);
+			console.log('[UpdateService] Found tar.gz asset:', tarAsset.name);
 			return tarAsset;
 		}
 	}
@@ -136,6 +145,7 @@ function findAssetForPlatform(assets: GitHubAsset[], platform: string, productSe
 		const dmgAsset = assets.find(asset => asset.name.endsWith('.dmg'));
 		if (dmgAsset) {
 			logService?.trace('[Update] Found dmg asset:', dmgAsset.name);
+			console.log('[UpdateService] Found dmg asset:', dmgAsset.name);
 			return dmgAsset;
 		}
 	}
@@ -199,12 +209,14 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		if (this.environmentMainService.disableUpdates) {
 			this.setState(State.Disabled(DisablementReason.DisabledByEnvironment));
 			this.logService.trace('update#ctor - updates are disabled by the environment');
+			console.log('[UpdateService] updates are disabled by the environment');
 			return;
 		}
 
 		if (!this.productService.updateUrl || !this.productService.commit) {
 			this.setState(State.Disabled(DisablementReason.MissingConfiguration));
 			this.logService.trace('update#ctor - updates are disabled as there is no update URL');
+			console.log('[UpdateService] updates are disabled as there is no update URL or commit');
 			return;
 		}
 
@@ -214,6 +226,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		if (!quality) {
 			this.setState(State.Disabled(DisablementReason.ManuallyDisabled));
 			this.logService.trace('update#ctor - updates are disabled by user preference');
+			console.log('[UpdateService] updates are disabled by user preference');
 			return;
 		}
 
@@ -221,6 +234,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		if (!this.url) {
 			this.setState(State.Disabled(DisablementReason.InvalidConfiguration));
 			this.logService.trace('update#ctor - updates are disabled as the update URL is badly formed');
+			console.log('[UpdateService] updates are disabled as the update URL is badly formed');
 			return;
 		}
 
@@ -235,11 +249,13 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 		if (updateMode === 'manual') {
 			this.logService.trace('update#ctor - manual checks only; automatic updates are disabled by user preference');
+			console.log('[UpdateService] update#ctor - manual checks only; automatic updates are disabled by user preference');
 			return;
 		}
 
 		if (updateMode === 'start') {
 			this.logService.trace('update#ctor - startup checks only; automatic updates are disabled by user preference');
+			console.log('[UpdateService] update#ctor - startup checks only; automatic updates are disabled by user preference');
 
 			// Check for updates only once after 30 seconds
 			setTimeout(() => this.checkForUpdates(false), 30 * 1000);
@@ -264,6 +280,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 	async checkForUpdates(explicit: boolean): Promise<void> {
 		this.logService.trace('update#checkForUpdates, state = ', this.state.type);
+		console.log('[UpdateService] update#checkForUpdates, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Idle) {
 			return;
@@ -274,6 +291,8 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 	async downloadUpdate(): Promise<void> {
 		this.logService.trace('update#downloadUpdate, state = ', this.state.type);
+		console.log('[UpdateService]update#downloadUpdate, state = ', this.state.type);
+
 
 		if (this.state.type !== StateType.AvailableForDownload) {
 			return;
@@ -288,6 +307,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 	async applyUpdate(): Promise<void> {
 		this.logService.trace('update#applyUpdate, state = ', this.state.type);
+		console.log('[UpdateService] update#applyUpdate, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Downloaded) {
 			return;
@@ -302,20 +322,24 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 	quitAndInstall(): Promise<void> {
 		this.logService.trace('update#quitAndInstall, state = ', this.state.type);
+		console.log('[UpdateService] update#quitAndInstall, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Ready) {
 			return Promise.resolve(undefined);
 		}
 
 		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
+		console.log('[UpdateService] update#quitAndInstall(): before lifecycle quit()');
 
 		this.lifecycleMainService.quit(true /* will restart */).then(vetod => {
 			this.logService.trace(`update#quitAndInstall(): after lifecycle quit() with veto: ${vetod}`);
+			console.log(`[UpdateService] update#quitAndInstall(): after lifecycle quit() with veto: ${vetod}`);
 			if (vetod) {
 				return;
 			}
 
 			this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
+			console.log('[UpdateService] update#quitAndInstall(): running raw#quitAndInstall()');
 			this.doQuitAndInstall();
 		});
 
@@ -343,6 +367,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 				// Skip prereleases unless explicitly allowed
 				if (release.prerelease) {
 					this.logService?.trace('[Update] Latest GitHub release is prerelease - not considering as latest');
+					console.log('[UpdateService] Latest GitHub release is prerelease - not considering as latest');
 					return false;
 				}
 
@@ -353,10 +378,12 @@ export abstract class AbstractUpdateService implements IUpdateService {
 				// Compare versions
 				const isLatest = !semverGt(latestVersion, currentVersion);
 				this.logService?.trace('[Update] Version comparison result:', { latestVersion, currentVersion, isLatest });
+				console.log('[UpdateService] Version comparison result:', { latestVersion, currentVersion, isLatest });
 
 				return isLatest;
 			} catch (error) {
 				this.logService.error('update#isLatestVersion(): failed to check GitHub updates');
+				console.log('[UpdateService] update#isLatestVersion(): failed to check GitHub updates');
 				this.logService.error(error);
 				return undefined;
 			}
@@ -371,6 +398,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 		} catch (error) {
 			this.logService.error('update#isLatestVersion(): failed to check for updates');
+			console.log('[UpdateService] update#isLatestVersion(): failed to check for updates');
 			this.logService.error(error);
 			return undefined;
 		}

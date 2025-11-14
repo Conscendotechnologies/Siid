@@ -125,6 +125,8 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		// Check if using GitHub API
 		const isGitHub = this.productService.updateUrl?.includes('api.github.com');
 		this.logService.trace('[Update] checkForUpdates - explicit:', explicit, 'isGitHub:', isGitHub, 'request url:', url);
+		console.log('[UpdateService] checkForUpdates - explicit:', explicit, 'isGitHub:', isGitHub, 'request url:', url);
+
 
 		this.requestService.request({ url }, CancellationToken.None)
 			.then<any>(asJson)
@@ -143,6 +145,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 					}
 					update = parseGitHubReleaseToUpdate(response, platform, this.productService, this.logService);
 					this.logService.trace('[Update] Parsed GitHub release response; update:', update);
+					console.log('[UpdateService] Parsed GitHub release response; update:', update);
 				} else {
 					// Original Microsoft format
 					update = response;
@@ -155,6 +158,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				}
 
 				this.logService.trace('[Update] Detected updateType:', updateType, 'update:', update);
+				console.log('[UpdateService] Detected updateType:', updateType, 'update:', update);
 				if (updateType === UpdateType.Archive) {
 					this.setState(State.AvailableForDownload(update));
 					return Promise.resolve(null);
@@ -163,18 +167,22 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				this.setState(State.Downloading);
 
 				this.logService.trace('[Update] Starting cleanup for version:', update.version);
+				console.log('[UpdateService] Starting cleanup for version:', update.version);
 				return this.cleanup(update.version).then(() => {
 					return this.getUpdatePackagePath(update.version).then(updatePackagePath => {
 						this.logService.trace('[Update] Update package path:', updatePackagePath);
+						console.log('[UpdateService] Update package path:', updatePackagePath);
 						return pfs.Promises.exists(updatePackagePath).then(exists => {
 							if (exists) {
 								this.logService.trace('[Update] Package already exists in cache:', updatePackagePath);
+								console.log('[UpdateService] Package already exists in cache:', updatePackagePath);
 								return Promise.resolve(updatePackagePath);
 							}
 
 							const downloadPath = `${updatePackagePath}.tmp`;
 
 							this.logService.trace('[Update] Starting download from URL:', update.url, 'to file:', downloadPath);
+							console.log('[UpdateService] Starting download from URL:', update.url, 'to file:', downloadPath);
 							return this.requestService.request({ url: update.url }, CancellationToken.None)
 								.then(context => this.fileService.writeFile(URI.file(downloadPath), context.stream))
 								.then(update.sha256hash ? () => checksum(downloadPath, update.sha256hash) : () => undefined)
@@ -185,11 +193,13 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 					}).then(packagePath => {
 						this.availableUpdate = { packagePath };
 						this.logService.trace('[Update] Downloaded packagePath set as availableUpdate:', packagePath);
+						console.log('[UpdateService] Downloaded packagePath set as availableUpdate:', packagePath);
 						this.setState(State.Downloaded(update));
 
 						const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
 						if (fastUpdatesEnabled) {
 							this.logService.trace('[Update] Fast updates are enabled. Will attempt to apply update now for user setup:', this.productService.target === 'user');
+							console.log('[UpdateService] Fast updates are enabled. Will attempt to apply update now for user setup:', this.productService.target === 'user');
 							if (this.productService.target === 'user') {
 								this.doApplyUpdate();
 							}
@@ -211,6 +221,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 	protected override async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
 		this.logService.trace('[Update] doDownloadUpdate - available update url:', state.update.url);
+		console.log('[UpdateService] doDownloadUpdate - available update url:', state.update.url);
 		if (state.update.url) {
 			this.nativeHostMainService.openExternal(undefined, state.update.url);
 		}
@@ -221,6 +232,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		const cachePath = await this.cachePath;
 		const p = path.join(cachePath, `CodeSetup-${this.productService.quality}-${version}.exe`);
 		this.logService.trace('[Update] getUpdatePackagePath - cachePath:', cachePath, 'package:', p);
+		console.log('[UpdateService] getUpdatePackagePath - cachePath:', cachePath, 'package:', p);
 		return p;
 	}
 
@@ -234,6 +246,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			try {
 				const filePath = path.join(cachePath, one);
 				this.logService.trace('[Update] cleanup - deleting file:', filePath);
+				console.log('[UpdateService] cleanup - deleting file:', filePath);
 				await fs.promises.unlink(filePath);
 			} catch (err) {
 				// ignore
@@ -259,11 +272,14 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		this.availableUpdate.updateFilePath = path.join(cachePath, `CodeSetup-${this.productService.quality}-${update.version}.flag`);
 		this.logService.trace('[Update] Will use updateFilePath:', this.availableUpdate.updateFilePath);
+		console.log('[UpdateService] Will use updateFilePath:', this.availableUpdate.updateFilePath);
 
 		await pfs.Promises.writeFile(this.availableUpdate.updateFilePath, 'flag');
 		this.logService.trace('[Update] Wrote update flag file to:', this.availableUpdate.updateFilePath);
+		console.log('[UpdateService] Wrote update flag file to:', this.availableUpdate.updateFilePath);
 		const spawnArgs = ['/verysilent', '/log', `/update="${this.availableUpdate.updateFilePath}"`, '/nocloseapplications', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'];
 		this.logService.trace('[Update] Spawning update installer:', this.availableUpdate.packagePath, 'args:', spawnArgs);
+		console.log('[UpdateService] Spawning update installer:', this.availableUpdate.packagePath, 'args:', spawnArgs);
 		const child = spawn(this.availableUpdate.packagePath, spawnArgs, {
 			detached: true,
 			stdio: ['ignore', 'ignore', 'ignore'],
@@ -280,6 +296,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		// poll for mutex-ready
 		this.logService.trace('[Update] Waiting for ready mutex:', readyMutexName);
+		console.log('[UpdateService] Waiting for ready mutex:', readyMutexName);
 		pollUntil(() => mutex.isActive(readyMutexName))
 			.then(() => this.setState(State.Ready(update)));
 	}
@@ -290,12 +307,15 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		}
 
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
+		console.log('update#quitAndInstall(): running raw#quitAndInstall()');
 
 		if (this.availableUpdate.updateFilePath) {
 			this.logService.trace('[Update] doQuitAndInstall - removing update flag file:', this.availableUpdate.updateFilePath);
+			console.log('[UpdateService] doQuitAndInstall - removing update flag file:', this.availableUpdate.updateFilePath);
 			fs.unlinkSync(this.availableUpdate.updateFilePath);
 		} else {
 			this.logService.trace('[Update] doQuitAndInstall - launching installer from package path:', this.availableUpdate.packagePath);
+			console.log('[UpdateService] doQuitAndInstall - launching installer from package path:', this.availableUpdate.packagePath);
 			spawn(this.availableUpdate.packagePath, ['/silent', '/log', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
 				detached: true,
 				stdio: ['ignore', 'ignore', 'ignore']
@@ -316,6 +336,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		const update: IUpdate = { version: 'unknown', productVersion: 'unknown' };
 
 		this.logService.trace('[Update] _applySpecificUpdate - packagePath:', packagePath);
+		console.log('[UpdateService] _applySpecificUpdate - packagePath:', packagePath);
 		this.setState(State.Downloading);
 		this.availableUpdate = { packagePath };
 		this.setState(State.Downloaded(update));
