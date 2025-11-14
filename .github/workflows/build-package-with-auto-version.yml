@@ -2,6 +2,7 @@ name: Build and Release Alpexium IDE (SemVer)
 on:
   push:
     branches:
+      - update-testing-from-main-stable
       - main-stable
   workflow_dispatch:
     inputs:
@@ -24,28 +25,29 @@ on:
 jobs:
   version-and-release:
     runs-on: windows-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22.15.1'
           cache: 'npm'
-          
+
       - name: Get latest tag
         id: get_latest_tag
         shell: bash
         run: |
           echo "🔍 Searching for latest semantic version tag (ignoring YYYY.x.x format)..."
-          
+
           # Get all v*.*.* tags
           ALL_TAGS=$(git tag -l "v*.*.*")
-          
+
           # Filter to ONLY semantic versions (MAJOR < 2000)
           LATEST_TAG=$(echo "$ALL_TAGS" | while read tag; do
             if [ -n "$tag" ]; then
@@ -57,7 +59,7 @@ jobs:
               fi
             fi
           done | sort -t. -k1,1n -k2,2n -k3,3n | tail -n 1)
-          
+
           # If no semantic version found, start fresh
           if [ -z "$LATEST_TAG" ]; then
             echo "⚠️  No semantic version tags found"
@@ -68,23 +70,23 @@ jobs:
             echo "✅ Found latest semantic version: $LATEST_TAG"
             IS_FIRST_RELEASE="false"
           fi
-          
+
           # Extract version numbers (remove 'v' prefix)
           VERSION=${LATEST_TAG#v}
-          
+
           echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
           echo "current_version=$VERSION" >> $GITHUB_OUTPUT
           echo "is_first_release=$IS_FIRST_RELEASE" >> $GITHUB_OUTPUT
           echo ""
           echo "📌 Using version: $LATEST_TAG"
-          
+
       - name: Analyze commits for version bump
         id: analyze_commits
         shell: bash
         run: |
           LATEST_TAG="${{ steps.get_latest_tag.outputs.latest_tag }}"
           IS_FIRST_RELEASE="${{ steps.get_latest_tag.outputs.is_first_release }}"
-          
+
           if [ "$IS_FIRST_RELEASE" = "true" ]; then
             echo "🎉 First semantic version release - analyzing recent commits"
             COMMITS=$(git log --pretty=format:"%s" --no-merges -20)
@@ -92,14 +94,14 @@ jobs:
             echo "📌 Analyzing commits since: $LATEST_TAG"
             COMMITS=$(git log $LATEST_TAG..HEAD --pretty=format:"%s" --no-merges)
           fi
-          
+
           echo "Commits analyzed:"
           echo "$COMMITS"
           echo ""
-          
+
           # Determine bump type based on conventional commits
           BUMP_TYPE="patch"
-          
+
           # Check for breaking changes (MAJOR)
           if echo "$COMMITS" | grep -qiE "^(BREAKING CHANGE:|feat!:|fix!:|refactor!:)"; then
             BUMP_TYPE="major"
@@ -116,9 +118,9 @@ jobs:
             BUMP_TYPE="patch"
             echo "⚪ No conventional commits → default PATCH version bump"
           fi
-          
+
           echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
-          
+
       - name: Calculate new version
         id: calc_version
         shell: bash
@@ -126,20 +128,24 @@ jobs:
           CURRENT_VERSION="${{ steps.get_latest_tag.outputs.current_version }}"
           IS_FIRST_RELEASE="${{ steps.get_latest_tag.outputs.is_first_release }}"
           BUMP_TYPE="${{ github.event.inputs.version_bump || steps.analyze_commits.outputs.bump_type }}"
-          
+          PRERELEASE="${{ github.event.inputs.prerelease }}"
+
           echo "Current version: $CURRENT_VERSION"
           echo "First release: $IS_FIRST_RELEASE"
           echo "Bump type: $BUMP_TYPE"
+          echo "Prerelease: $PRERELEASE"
           echo ""
-          
+
           if [ "$IS_FIRST_RELEASE" = "true" ]; then
             # This is the first semantic version release
             NEW_VERSION="1.105.1"
             echo "🎉 First semantic version release: $NEW_VERSION"
           else
-            # Parse current version (format: MAJOR.MINOR.PATCH)
-            IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
-            
+            # Parse current version (format: MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-alpha.X)
+            # Remove any prerelease suffix first
+            BASE_VERSION="${CURRENT_VERSION%%-*}"
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
+
             # Apply semantic version bump
             case $BUMP_TYPE in
               major)
@@ -158,19 +164,26 @@ jobs:
                 echo "🟢 PATCH bump: $CURRENT_VERSION → $MAJOR.$MINOR.$PATCH"
                 ;;
             esac
-            
-            NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+
+            # Build version string (with or without prerelease suffix)
+            if [ "$PRERELEASE" = "true" ]; then
+              NEW_VERSION="$MAJOR.$MINOR.$PATCH-alpha.$PATCH"
+              echo "🔵 Prerelease version: $NEW_VERSION"
+            else
+              NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+              echo "✅ Stable version: $NEW_VERSION"
+            fi
           fi
-          
+
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "new_tag=v$NEW_VERSION" >> $GITHUB_OUTPUT
-          
+
       - name: Check if version already exists
         id: check_version
         shell: bash
         run: |
           NEW_TAG="${{ steps.calc_version.outputs.new_tag }}"
-          
+
           if git rev-parse "$NEW_TAG" >/dev/null 2>&1; then
             echo "⚠️  Tag $NEW_TAG already exists!"
             echo "version_exists=true" >> $GITHUB_OUTPUT
@@ -178,37 +191,83 @@ jobs:
             echo "✅ Tag $NEW_TAG is available"
             echo "version_exists=false" >> $GITHUB_OUTPUT
           fi
-          
+
+      - name: Update package.json and product.json version
+        if: steps.check_version.outputs.version_exists == 'false'
+        shell: bash
+        run: |
+          NEW_VERSION="${{ steps.calc_version.outputs.new_version }}"
+          echo "📝 Updating package.json and product.json to version $NEW_VERSION"
+
+          # Get current package.json version
+          CURRENT_PKG_VERSION=$(node -p "require('./package.json').version")
+          echo "Current package.json version: $CURRENT_PKG_VERSION"
+
+          # Update version in package.json (only if different)
+          if [ "$CURRENT_PKG_VERSION" != "$NEW_VERSION" ]; then
+            npm version $NEW_VERSION --no-git-tag-version --allow-same-version
+            echo "✅ package.json version updated to: $NEW_VERSION"
+          else
+            echo "ℹ️  package.json already at version $NEW_VERSION, skipping npm version"
+          fi
+
+          # Update version in product.json using Node.js
+          node -e "
+            const fs = require('fs');
+            const product = JSON.parse(fs.readFileSync('product.json', 'utf8'));
+            product.version = '$NEW_VERSION';
+            fs.writeFileSync('product.json', JSON.stringify(product, null, '\t') + '\n');
+          "
+
+          # Verify the changes
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          PRODUCT_VERSION=$(node -p "require('./product.json').version")
+          echo "✅ Final package.json version: $PACKAGE_VERSION"
+          echo "✅ Final product.json version: $PRODUCT_VERSION"
+
+          # Check if there are any changes to commit
+          if git diff --quiet package.json package-lock.json product.json; then
+            echo "ℹ️  No version changes detected, skipping commit"
+          else
+            # Commit and push the version changes
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add package.json package-lock.json product.json
+            git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
+            git push
+            echo "✅ Version changes committed and pushed"
+          fi
+
       - name: Install dependencies
         if: steps.check_version.outputs.version_exists == 'false'
         run: npm install
-        
+
       - name: Compile Extensions
         if: steps.check_version.outputs.version_exists == 'false'
         run: npm run gulp -- compile-extensions
-        
+
       - name: Build Windows x64 min
         if: steps.check_version.outputs.version_exists == 'false'
         run: npm run gulp -- vscode-win32-x64-min
-        
+
       - name: Build Inno Updater
         if: steps.check_version.outputs.version_exists == 'false'
         run: npm run gulp -- vscode-win32-x64-inno-updater
-        
+
       - name: Build User Setup
         if: steps.check_version.outputs.version_exists == 'false'
         run: npm run gulp -- vscode-win32-x64-user-setup
-        
+
       - name: Build System Setup
         if: steps.check_version.outputs.version_exists == 'false'
         run: npm run gulp -- vscode-win32-x64-system-setup
-        
+
       - name: Rename and collect setup files
         if: steps.check_version.outputs.version_exists == 'false'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path ./release-output
-          
+
           $userSetupPath = ".build/win32-x64/user-setup/SIIDSetup.exe"
           if (Test-Path $userSetupPath) {
             Copy-Item $userSetupPath -Destination "./release-output/AlpexiumIDE-v${{ steps.calc_version.outputs.new_version }}-UserSetup.exe"
@@ -217,7 +276,7 @@ jobs:
             Write-Error "User Setup not found at $userSetupPath"
             exit 1
           }
-          
+
           $systemSetupPath = ".build/win32-x64/system-setup/SIIDSetup.exe"
           if (Test-Path $systemSetupPath) {
             Copy-Item $systemSetupPath -Destination "./release-output/AlpexiumIDE-v${{ steps.calc_version.outputs.new_version }}-SystemSetup.exe"
@@ -226,7 +285,7 @@ jobs:
             Write-Error "System Setup not found at $systemSetupPath"
             exit 1
           }
-          
+
       - name: Generate checksums
         if: steps.check_version.outputs.version_exists == 'false'
         shell: pwsh
@@ -237,21 +296,21 @@ jobs:
             $hash | Out-File -FilePath "$($_.Name).sha256" -NoNewline
             Write-Host "✓ Checksum for $($_.Name): $hash"
           }
-          
+
       - name: Get build timestamp
         id: timestamp
         shell: bash
         run: |
           echo "build_date=$(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_OUTPUT
           echo "build_date_compact=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
-          
+
       - name: Generate changelog
         id: changelog
         shell: bash
         run: |
           LATEST_TAG="${{ steps.get_latest_tag.outputs.latest_tag }}"
           IS_FIRST_RELEASE="${{ steps.get_latest_tag.outputs.is_first_release }}"
-          
+
           if [ "$IS_FIRST_RELEASE" = "true" ]; then
             echo "🎉 First semantic version release - showing recent commits"
             COMMITS=$(git log --pretty=format:"- %s by @%an in %h" --no-merges -20)
@@ -259,40 +318,40 @@ jobs:
             echo "📋 Generating changelog from $LATEST_TAG to HEAD"
             COMMITS=$(git log $LATEST_TAG..HEAD --pretty=format:"- %s by @%an in %h" --no-merges)
           fi
-          
+
           # Check if there are any commits
           if [ -z "$COMMITS" ]; then
             COMMITS="- No changes since last release"
           fi
-          
+
           # Save to file
           echo "$COMMITS" > changelog.txt
-          
+
           # Read into output
           CHANGELOG=$(cat changelog.txt)
           echo "changelog<<EOF" >> $GITHUB_OUTPUT
           echo "$CHANGELOG" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-          
+
       - name: Get contributors
         id: contributors
         shell: bash
         run: |
           LATEST_TAG="${{ steps.get_latest_tag.outputs.latest_tag }}"
           IS_FIRST_RELEASE="${{ steps.get_latest_tag.outputs.is_first_release }}"
-          
+
           if [ "$IS_FIRST_RELEASE" = "true" ]; then
             CONTRIBUTORS=$(git log --pretty=format:"%an" --no-merges | sort -u | head -10 | sed 's/^/@/' | paste -sd "," - | sed 's/,/, /g')
           else
             CONTRIBUTORS=$(git log $LATEST_TAG..HEAD --pretty=format:"%an" --no-merges | sort -u | sed 's/^/@/' | paste -sd "," - | sed 's/,/, /g')
           fi
-          
+
           if [ -z "$CONTRIBUTORS" ]; then
             CONTRIBUTORS="@${{ github.actor }}"
           fi
-          
+
           echo "contributors=$CONTRIBUTORS" >> $GITHUB_OUTPUT
-          
+
       - name: Create Release
         if: steps.check_version.outputs.version_exists == 'false'
         uses: softprops/action-gh-release@v1
@@ -304,41 +363,41 @@ jobs:
           generate_release_notes: false
           body: |
             ## Alpexium IDE Installers
-            
+
             **Build Date:** ${{ steps.timestamp.outputs.build_date }}
             **Version:** v${{ steps.calc_version.outputs.new_version }}
             **Version Bump:** ${{ steps.analyze_commits.outputs.bump_type }}
-            
+
             ---
-            
+
             ### 📦 Downloads
-            
+
             | Installer | Description |
             |-----------|-------------|
             | **AlpexiumIDE-v${{ steps.calc_version.outputs.new_version }}-UserSetup.exe** | User installation (current user only, no admin required) |
             | **AlpexiumIDE-v${{ steps.calc_version.outputs.new_version }}-SystemSetup.exe** | System installation (all users, requires administrator) |
-            
+
             ### 🔐 Checksums
             Use the .sha256 files to verify your download integrity.
-            
+
             ---
-            
+
             ### 📝 What's Changed
-            
+
             ${{ steps.changelog.outputs.changelog }}
-            
+
             **Full Changelog:** ${{ github.server_url }}/${{ github.repository }}/compare/${{ steps.get_latest_tag.outputs.latest_tag }}...${{ steps.calc_version.outputs.new_tag }}
-            
+
             ---
-            
+
             ### 👥 Contributors
-            
+
             ${{ steps.contributors.outputs.contributors }}
-            
+
             ---
-            
+
             ### 📋 Version Information
-            
+
             Alpexium IDE follows **Semantic Versioning**: `MAJOR.MINOR.PATCH`
             - **MAJOR**: Breaking changes or significant new features
             - **MINOR**: New features (backward compatible)
@@ -348,7 +407,7 @@ jobs:
             release-output/*.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
+
       - name: Upload Build Artifacts
         if: steps.check_version.outputs.version_exists == 'false'
         uses: actions/upload-artifact@v4
@@ -358,7 +417,7 @@ jobs:
             release-output/*.exe
             release-output/*.sha256
           retention-days: 90
-          
+
       - name: Summary
         if: always()
         shell: bash
@@ -374,7 +433,7 @@ jobs:
           echo "| Version Exists | ${{ steps.check_version.outputs.version_exists }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Prerelease | ${{ github.event.inputs.prerelease || 'false' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           if [ "${{ steps.check_version.outputs.version_exists }}" == "true" ]; then
             echo "### ⚠️ Warning" >> $GITHUB_STEP_SUMMARY
             echo "Version ${{ steps.calc_version.outputs.new_tag }} already exists. Build was skipped." >> $GITHUB_STEP_SUMMARY
