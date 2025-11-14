@@ -191,24 +191,34 @@ jobs:
             echo "version_exists=false" >> $GITHUB_OUTPUT
           fi
           
-      - name: Update package.json version
+      - name: Update package.json and product.json version
         if: steps.check_version.outputs.version_exists == 'false'
         shell: bash
         run: |
           NEW_VERSION="${{ steps.calc_version.outputs.new_version }}"
-          echo "📝 Updating package.json to version $NEW_VERSION"
+          echo "📝 Updating package.json and product.json to version $NEW_VERSION"
           
           # Update version in package.json
           npm version $NEW_VERSION --no-git-tag-version
           
-          # Verify the change
-          UPDATED_VERSION=$(node -p "require('./package.json').version")
-          echo "✅ package.json version updated to: $UPDATED_VERSION"
+          # Update version in product.json using Node.js
+          node -e "
+            const fs = require('fs');
+            const product = JSON.parse(fs.readFileSync('product.json', 'utf8'));
+            product.version = '$NEW_VERSION';
+            fs.writeFileSync('product.json', JSON.stringify(product, null, '\t') + '\n');
+          "
           
-          # Commit and push the version change
+          # Verify the changes
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          PRODUCT_VERSION=$(node -p "require('./product.json').version")
+          echo "✅ package.json version updated to: $PACKAGE_VERSION"
+          echo "✅ product.json version updated to: $PRODUCT_VERSION"
+          
+          # Commit and push the version changes
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add package.json package-lock.json
+          git add package.json package-lock.json product.json
           git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
           git push
           
