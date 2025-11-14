@@ -76,3 +76,4 @@ Copyright (c) 2025 Conscendo. All rights reserved.
 Licensed under the [MIT](LICENSE.txt) license.
 
 This project is a fork of [Visual Studio Code](https://github.com/microsoft/vscode) and maintains the original MIT License. All modifications and additions are also released under the MIT License.
+
