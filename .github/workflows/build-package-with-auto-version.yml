@@ -198,8 +198,17 @@ jobs:
           NEW_VERSION="${{ steps.calc_version.outputs.new_version }}"
           echo "📝 Updating package.json and product.json to version $NEW_VERSION"
           
-          # Update version in package.json
-          npm version $NEW_VERSION --no-git-tag-version
+          # Get current package.json version
+          CURRENT_PKG_VERSION=$(node -p "require('./package.json').version")
+          echo "Current package.json version: $CURRENT_PKG_VERSION"
+          
+          # Update version in package.json (only if different)
+          if [ "$CURRENT_PKG_VERSION" != "$NEW_VERSION" ]; then
+            npm version $NEW_VERSION --no-git-tag-version --allow-same-version
+            echo "✅ package.json version updated to: $NEW_VERSION"
+          else
+            echo "ℹ️  package.json already at version $NEW_VERSION, skipping npm version"
+          fi
           
           # Update version in product.json using Node.js
           node -e "
@@ -212,15 +221,21 @@ jobs:
           # Verify the changes
           PACKAGE_VERSION=$(node -p "require('./package.json').version")
           PRODUCT_VERSION=$(node -p "require('./product.json').version")
-          echo "✅ package.json version updated to: $PACKAGE_VERSION"
-          echo "✅ product.json version updated to: $PRODUCT_VERSION"
+          echo "✅ Final package.json version: $PACKAGE_VERSION"
+          echo "✅ Final product.json version: $PRODUCT_VERSION"
           
-          # Commit and push the version changes
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add package.json package-lock.json product.json
-          git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
-          git push
+          # Check if there are any changes to commit
+          if git diff --quiet package.json package-lock.json product.json; then
+            echo "ℹ️  No version changes detected, skipping commit"
+          else
+            # Commit and push the version changes
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add package.json package-lock.json product.json
+            git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
+            git push
+            echo "✅ Version changes committed and pushed"
+          fi
           
       - name: Install dependencies
         if: steps.check_version.outputs.version_exists == 'false'
