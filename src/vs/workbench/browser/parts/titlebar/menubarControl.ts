@@ -367,7 +367,7 @@ export abstract class MenubarControl extends Disposable {
 
 	protected onDidChangeRecentlyOpened(): void {
 
-		// Do not update recently opened when the menubar is hidden #108712
+		// Do not update recently opened when the menubar is hidden var(--vscode-activityBarBadge-background)
 		if (!this.menubarHidden) {
 			this.workspacesService.getRecentlyOpened().then(recentlyOpened => {
 				this.recentlyOpened = recentlyOpened;

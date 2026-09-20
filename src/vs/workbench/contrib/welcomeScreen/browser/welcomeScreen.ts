@@ -345,13 +345,13 @@ export class WelcomeScreenContribution extends Disposable implements IWorkbenchC
 		// Orange path (bottom-right triangle)
 		const orangePath = document.createElementNS(svgNS, 'path');
 		orangePath.setAttribute('d', 'M194.56 188.416C194.56 203.12 182.64 215.04 167.936 215.04H54.036C30.3166 215.04 18.4378 186.362 35.21 169.59L149.11 55.6899C165.882 38.9178 194.56 50.7966 194.56 74.516V188.416Z');
-		orangePath.setAttribute('fill', '#FF7800');
+		orangePath.setAttribute('fill', 'var(--vscode-editorWarning-foreground)');
 		group.appendChild(orangePath);
 
 		// Violet path (top-left triangle)
 		const violetPath = document.createElementNS(svgNS, 'path');
 		violetPath.setAttribute('d', 'M61.44 47.104C61.44 32.4 73.36 20.48 88.064 20.48H201.964C225.683 20.48 237.562 49.1578 220.79 65.93L106.89 179.83C90.1178 196.602 61.44 184.723 61.44 161.004V47.104Z');
-		violetPath.setAttribute('fill', '#443264');
+		violetPath.setAttribute('fill', 'var(--vscode-button-background)');
 		group.appendChild(violetPath);
 
 		logoIcon.appendChild(group);
@@ -449,17 +449,17 @@ export class WelcomeScreenContribution extends Disposable implements IWorkbenchC
 
 			const stop1 = document.createElementNS(svgNS, 'stop');
 			stop1.setAttribute('offset', '0');
-			stop1.setAttribute('stop-color', '#0065A9');
+			stop1.setAttribute('stop-color', 'var(--vscode-textLink-activeForeground)');
 			gradient.appendChild(stop1);
 
 			const stop2 = document.createElementNS(svgNS, 'stop');
 			stop2.setAttribute('offset', '0.5');
-			stop2.setAttribute('stop-color', '#007ACC');
+			stop2.setAttribute('stop-color', 'var(--vscode-textLink-foreground)');
 			gradient.appendChild(stop2);
 
 			const stop3 = document.createElementNS(svgNS, 'stop');
 			stop3.setAttribute('offset', '1');
-			stop3.setAttribute('stop-color', '#1F9CF0');
+			stop3.setAttribute('stop-color', 'var(--vscode-textLink-foreground)');
 			gradient.appendChild(stop3);
 
 			defs.appendChild(gradient);

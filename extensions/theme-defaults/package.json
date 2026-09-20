@@ -66,6 +66,12 @@
         "label": "AI Pexium Night",
         "uiTheme": "vs-dark",
         "path": "./themes/ai_pexium_night.json"
+      },
+      {
+        "id": "SIID Nocturne",
+        "label": "SIID Nocturne",
+        "uiTheme": "vs-dark",
+        "path": "./themes/siid_nocturne.json"
       }
     ],
     "iconThemes": [

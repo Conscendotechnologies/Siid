@@ -346,9 +346,9 @@ export class ReleaseNotesManager {
 					${css}
 
 					:root {
-						--brand-orange: #ff7800;
-						--brand-purple: #432264;
-						--gradient-dark: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
+						--brand-orange: var(--vscode-editorWarning-foreground);
+						--brand-purple: var(--vscode-progressBar-background);
+						--gradient-dark: linear-gradient(135deg, var(--vscode-editor-background) 0%, var(--vscode-editorWidget-background) 100%);
 						--card-bg: rgba(255, 255, 255, 0.03);
 						--card-border: rgba(255, 255, 255, 0.08);
 					}
@@ -386,7 +386,7 @@ export class ReleaseNotesManager {
 				.release-header {
 					position: relative;
 					z-index: 200;
-					background: linear-gradient(135deg, #0d1117 0%, #161b22 50%, #1c2128 100%);
+					background: linear-gradient(135deg, var(--vscode-editor-background) 0%, var(--vscode-editorWidget-background) 50%, var(--vscode-widget-border) 100%);
 					padding: 70px 60px 55px;
 					margin-bottom: 0;
 					overflow: hidden;
@@ -399,7 +399,7 @@ export class ReleaseNotesManager {
 						left: 0;
 						right: 0;
 						height: 3px;
-						background: linear-gradient(90deg, var(--brand-orange) 0%, #ff9500 50%, var(--brand-orange) 100%);
+						background: linear-gradient(90deg, var(--brand-orange) 0%, var(--vscode-editorWarning-foreground) 50%, var(--brand-orange) 100%);
 						background-size: 200% 100%;
 						animation: shimmer 4s ease-in-out infinite;
 					}
@@ -431,7 +431,7 @@ export class ReleaseNotesManager {
 						margin: 0;
 						font-size: 3em;
 						font-weight: 700;
-						color: #ffffff;
+						color: var(--vscode-editor-foreground);
 						letter-spacing: -0.03em;
 						line-height: 1.2;
 						animation: fadeInUp 0.6s ease-out;
@@ -539,7 +539,7 @@ export class ReleaseNotesManager {
 
 					/* Links */
 					a {
-						color: #569cd6;
+						color: var(--vscode-textLink-foreground);
 						text-decoration: none;
 						transition: color 0.2s ease;
 					}
@@ -565,7 +565,7 @@ export class ReleaseNotesManager {
 
 					code {
 						background-color: rgba(255, 255, 255, 0.08);
-						color: #ce9178;
+						color: var(--vscode-textPreformat-foreground);
 						padding: 3px 8px;
 						border-radius: 4px;
 						font-size: 0.9em;
@@ -679,7 +679,7 @@ export class ReleaseNotesManager {
 					}
 
 					ol li::marker {
-						color: #569cd6;
+						color: var(--vscode-textLink-foreground);
 						font-weight: 600;
 					}
 
@@ -689,7 +689,7 @@ export class ReleaseNotesManager {
 						padding: 20px 24px;
 						background: rgba(86, 156, 214, 0.05);
 						border: 1px solid rgba(86, 156, 214, 0.2);
-						border-left: 4px solid #569cd6;
+						border-left: 4px solid var(--vscode-textLink-foreground);
 						border-radius: 6px;
 						position: relative;
 						font-style: italic;
@@ -916,7 +916,7 @@ export class ReleaseNotesManager {
 					}
 
 					em, i {
-						color: #569cd6;
+						color: var(--vscode-textLink-foreground);
 						font-style: italic;
 						font-weight: 500;
 					}
