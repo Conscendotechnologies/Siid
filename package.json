@@ -136,10 +136,7 @@
     "vscode-textmate": "9.2.0",
     "ws": "^8.18.3",
     "yauzl": "^3.0.0",
-    "yazl": "^2.4.3",
-    "@fontsource/inter": "^5.1.0",
-    "@fontsource/jetbrains-mono": "^5.1.1",
-    "@phosphor-icons/react": "^2.1.7"
+    "yazl": "^2.4.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.53.2",
