@@ -5562,9 +5562,12 @@ class EditorPasteAs extends BaseEditorOption<EditorOption.pasteAs, IPasteAsOptio
 
 //#endregion
 
-const DEFAULT_WINDOWS_FONT_FAMILY = 'Consolas, \'Courier New\', monospace';
-const DEFAULT_MAC_FONT_FAMILY = 'Menlo, Monaco, \'Courier New\', monospace';
-const DEFAULT_LINUX_FONT_FAMILY = '\'Droid Sans Mono\', \'monospace\', monospace';
+// SIID: JetBrains Mono is the product's code face (Phase 1 §1.3). It is listed
+// first with the platform default kept as the fallback, so this is a no-op until
+// the font is bundled with the product or installed by the user.
+const DEFAULT_WINDOWS_FONT_FAMILY = '\'JetBrains Mono\', Consolas, \'Courier New\', monospace';
+const DEFAULT_MAC_FONT_FAMILY = '\'JetBrains Mono\', Menlo, Monaco, \'Courier New\', monospace';
+const DEFAULT_LINUX_FONT_FAMILY = '\'JetBrains Mono\', \'Droid Sans Mono\', \'monospace\', monospace';
 
 /**
  * @internal
