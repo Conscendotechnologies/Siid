@@ -105,15 +105,15 @@ export class BlockingProgressDialogService implements IBlockingProgressDialogSer
 		const dialog = document.createElement('div');
 		dialog.className = 'blocking-progress-dialog';
 		dialog.style.cssText = `
-			background: #252526;
-			border: 2px solid #663399;
+			background: var(--vscode-editorWidget-background);
+			border: 2px solid var(--vscode-focusBorder);
 			border-radius: 4px;
 			padding: 48px 44px;
 			width: 65vw;
 			max-width: 900px;
 			min-width: 600px;
 			min-height: 320px;
-			box-shadow: 0 16px 64px rgba(0, 0, 0, 0.9), 0 0 0 1px #663399;
+			box-shadow: 0 16px 64px rgba(0, 0, 0, 0.9), 0 0 0 1px var(--vscode-focusBorder);
 			position: relative;
 			pointer-events: all;
 		`;
@@ -141,15 +141,15 @@ export class BlockingProgressDialogService implements IBlockingProgressDialogSer
 			@keyframes pulse-shake {
 				0%, 100% {
 					transform: scale(1) translateX(0);
-					border-color: #663399;
+					border-color: var(--vscode-focusBorder);
 				}
 				10%, 30%, 50%, 70%, 90% {
 					transform: scale(1.001) translateX(-1px);
-					border-color: #ff7800;
+					border-color: var(--vscode-editorWarning-foreground);
 				}
 				20%, 40%, 60%, 80% {
 					transform: scale(1.001) translateX(1 px);
-					border-color: #ff7800;
+					border-color: var(--vscode-editorWarning-foreground);
 				}
 			}
 			@keyframes shimmer {
@@ -166,7 +166,7 @@ export class BlockingProgressDialogService implements IBlockingProgressDialogSer
 		title.style.cssText = `
 			font-size: 18px;
 			font-weight: 600;
-			color: #ff7800;
+			color: var(--vscode-editorWarning-foreground);
 			margin-bottom: 20px;
 			display: flex;
 			align-items: center;
@@ -179,7 +179,7 @@ export class BlockingProgressDialogService implements IBlockingProgressDialogSer
 			icon.className = `codicon codicon-${options.icon.id} codicon-modifier-spin`;
 			icon.style.cssText = `
 				font-size: 20px;
-				color: #ff7800;
+				color: var(--vscode-editorWarning-foreground);
 			`;
 			title.prepend(icon);
 		}
@@ -191,7 +191,7 @@ export class BlockingProgressDialogService implements IBlockingProgressDialogSer
 		message.style.cssText = `
 			font-size: 16px;
 			font-weight: 600;
-			color: #ffffff;
+			color: var(--vscode-editor-foreground);
 			line-height: 1.6;
 			margin-bottom: 20px;
 		`;
@@ -201,13 +201,13 @@ export class BlockingProgressDialogService implements IBlockingProgressDialogSer
 		description.className = 'blocking-progress-description';
 		description.style.cssText = `
 			font-size: 13px;
-			color: #c488ff;
+			color: var(--vscode-textLink-foreground);
 			line-height: 1.6;
 			margin-bottom: 24px;
 			padding: 16px 20px;
-			background: #1e1e1e;
-			border: 1px solid #663399;
-			border-left: 4px solid #ff7800;
+			background: var(--vscode-editor-background);
+			border: 1px solid var(--vscode-focusBorder);
+			border-left: 4px solid var(--vscode-editorWarning-foreground);
 			border-radius: 4px;
 			box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 		`;
@@ -215,7 +215,7 @@ export class BlockingProgressDialogService implements IBlockingProgressDialogSer
 		// Create header
 		const descHeader = document.createElement('div');
 		descHeader.textContent = '⚠ Important:';
-		descHeader.style.cssText = 'font-weight: 600; margin-bottom: 8px; color: #ff7800;';
+		descHeader.style.cssText = 'font-weight: 600; margin-bottom: 8px; color: var(--vscode-editorWarning-foreground);';
 		description.appendChild(descHeader);
 
 		// Create bullet points
@@ -246,8 +246,8 @@ export class BlockingProgressDialogService implements IBlockingProgressDialogSer
 		progressBarBg.style.cssText = `
 			width: 100%;
 			height: 14px;
-			background: #2d2d2d;
-			border: 1px solid #432264;
+			background: var(--vscode-input-background);
+			border: 1px solid var(--vscode-progressBar-background);
 			border-radius: 6px;
 			overflow: hidden;
 			position: relative;
@@ -259,7 +259,7 @@ export class BlockingProgressDialogService implements IBlockingProgressDialogSer
 		progressBarFill.style.cssText = `
 			height: 100%;
 			width: 0%;
-			background: linear-gradient(90deg, #663399 0%, #bc84f3ff 50%, #663399 100%);
+			background: linear-gradient(90deg, var(--vscode-focusBorder) 0%, var(--vscode-textLink-foreground) 50%, var(--vscode-focusBorder) 100%);
 			background-size: 200% 100%;
 			border-radius: 6px;
 			transition: width 0.3s ease-out;
@@ -275,7 +275,7 @@ export class BlockingProgressDialogService implements IBlockingProgressDialogSer
 		progressText.textContent = '0%';
 		progressText.style.cssText = `
 			font-size: 12px;
-			color: #cccccc;
+			color: var(--vscode-descriptionForeground);
 			margin-top: 10px;
 			text-align: right;
 			font-weight: 500;
@@ -289,10 +289,10 @@ export class BlockingProgressDialogService implements IBlockingProgressDialogSer
 		footer.textContent = 'Configuring environment...';
 		footer.style.cssText = `
 			font-size: 12px;
-			color: #858585;
+			color: var(--vscode-descriptionForeground);
 			margin-top: 24px;
 			padding-top: 20px;
-			border-top: 1px solid #3c3c3c;
+			border-top: 1px solid var(--vscode-widget-border);
 			text-align: center;
 			font-style: italic;
 		`;
@@ -367,16 +367,16 @@ export class BlockingProgressDialogService implements IBlockingProgressDialogSer
 					justify-content: flex-end;
 					margin-top: 24px;
 					padding-top: 20px;
-					border-top: 1px solid #3c3c3c;
+					border-top: 1px solid var(--vscode-widget-border);
 				`;
 
 				// Create Restart button
 				const restartButton = document.createElement('button');
 				restartButton.textContent = 'Reload Window';
 				restartButton.style.cssText = `
-					background: #4e227b;
-					color: #ff7800;
-					border: 1px solid #663399;
+					background: var(--vscode-button-background);
+					color: var(--vscode-editorWarning-foreground);
+					border: 1px solid var(--vscode-focusBorder);
 					border-radius: 4px;
 					padding: 8px 20px;
 					font-size: 13px;
@@ -385,10 +385,10 @@ export class BlockingProgressDialogService implements IBlockingProgressDialogSer
 					transition: background 0.2s ease;
 				`;
 				restartButton.addEventListener('mouseenter', () => {
-					restartButton.style.background = '#402060';
+					restartButton.style.background = 'var(--vscode-button-hoverBackground)';
 				});
 				restartButton.addEventListener('mouseleave', () => {
-					restartButton.style.background = '#4e227b';
+					restartButton.style.background = 'var(--vscode-button-background)';
 				});
 				restartButton.addEventListener('click', () => {
 					onRestart();
@@ -398,9 +398,9 @@ export class BlockingProgressDialogService implements IBlockingProgressDialogSer
 				const laterButton = document.createElement('button');
 				laterButton.textContent = 'Later';
 				laterButton.style.cssText = `
-					background: #3a3d41;
-					color: #ff7800;
-					border: 1px solid #3c3c3c;
+					background: var(--vscode-button-secondaryBackground);
+					color: var(--vscode-editorWarning-foreground);
+					border: 1px solid var(--vscode-widget-border);
 					border-radius: 4px;
 					padding: 8px 20px;
 					font-size: 13px;
@@ -409,10 +409,10 @@ export class BlockingProgressDialogService implements IBlockingProgressDialogSer
 					transition: background 0.2s ease;
 				`;
 				laterButton.addEventListener('mouseenter', () => {
-					laterButton.style.background = '#45494e';
+					laterButton.style.background = 'var(--vscode-button-secondaryHoverBackground)';
 				});
 				laterButton.addEventListener('mouseleave', () => {
-					laterButton.style.background = '#3a3d41';
+					laterButton.style.background = 'var(--vscode-button-secondaryBackground)';
 				});
 				laterButton.addEventListener('click', () => {
 					onLater();
