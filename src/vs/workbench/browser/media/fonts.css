@@ -1,0 +1,64 @@
+/*---------------------------------------------------------------------------------------------
+ *  SIID product fonts.
+ *
+ *  Inter is the interface face and JetBrains Mono the code face (Phase 1 §1.3). Both are
+ *  bundled rather than fetched: the design must not depend on what the user happens to have
+ *  installed, and the product must render correctly offline.
+ *
+ *  Latin subsets only, at the three weights the design uses. Inter is never set above 500 by
+ *  the design system ("hierarchy is size and space, not weight"); 600 is carried for the
+ *  monospace wordmark in the title bar.
+ *
+ *  Both faces are licensed under the SIL Open Font License 1.1 — see fonts/LICENSE-Inter.txt
+ *  and fonts/LICENSE-JetBrainsMono.txt, which must ship alongside these files.
+ *
+ *  Pattern follows src/vs/base/browser/ui/codicons/codicon/codicon.css.
+ *--------------------------------------------------------------------------------------------*/
+
+@font-face {
+	font-family: "Inter";
+	font-style: normal;
+	font-weight: 400;
+	font-display: block;
+	src: url("./fonts/inter-400.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "Inter";
+	font-style: normal;
+	font-weight: 500;
+	font-display: block;
+	src: url("./fonts/inter-500.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "Inter";
+	font-style: normal;
+	font-weight: 600;
+	font-display: block;
+	src: url("./fonts/inter-600.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "JetBrains Mono";
+	font-style: normal;
+	font-weight: 400;
+	font-display: block;
+	src: url("./fonts/jetbrains-mono-400.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "JetBrains Mono";
+	font-style: normal;
+	font-weight: 500;
+	font-display: block;
+	src: url("./fonts/jetbrains-mono-500.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "JetBrains Mono";
+	font-style: normal;
+	font-weight: 600;
+	font-display: block;
+	src: url("./fonts/jetbrains-mono-600.woff2") format("woff2");
+}
