@@ -134,6 +134,31 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.opy', "'Copy as' submenu in the top level Edit menu")
 	},
 	{
+		key: 'menuBar/main',
+		id: MenuId.MenubarMainMenu,
+		description: localize('menus.menuBarMain', "The top level menu bar. Contribute a submenu to add a new top level menu; use \"group\": \"menubar@<order>\" to position it (File 1, Terminal 7, Forge 7.5, Help 8).")
+	},
+	{
+		key: 'menuBar/file',
+		id: MenuId.MenubarFileMenu,
+		description: localize('menus.menuBarFile', "The top level File menu")
+	},
+	{
+		key: 'menuBar/terminal',
+		id: MenuId.MenubarTerminalMenu,
+		description: localize('menus.menuBarTerminal', "The top level Terminal menu")
+	},
+	{
+		key: 'menuBar/forge',
+		id: MenuId.MenubarForgeMenu,
+		description: localize('menus.menuBarForge', "The top level Forge menu")
+	},
+	{
+		key: 'menuBar/help',
+		id: MenuId.MenubarHelpMenu,
+		description: localize('menus.menuBarHelp', "The top level Help menu")
+	},
+	{
 		key: 'scm/title',
 		id: MenuId.SCMTitle,
 		description: localize('menus.scmTitle', "The Source Control title menu")
@@ -1029,7 +1054,9 @@ menusExtensionPoint.setHandler(extensions => {
 
 					submenuRegistrations.add(submenu.id.id);
 
-					item = { submenu: submenu.id, icon: submenu.icon, title: submenu.label, group: undefined, order: undefined, when: undefined };
+					// The menu bar reads top level titles as localized strings
+					const title = menu.id === MenuId.MenubarMainMenu ? { value: submenu.label, original: submenu.label } : submenu.label;
+					item = { submenu: submenu.id, icon: submenu.icon, title, group: undefined, order: undefined, when: undefined };
 				}
 
 				if (menuItem.group) {
@@ -1040,6 +1067,11 @@ menusExtensionPoint.setHandler(extensions => {
 					} else {
 						item.group = menuItem.group;
 					}
+				}
+
+				if (menu.id === MenuId.MenubarMainMenu) {
+					// The menu bar only renders the default group, so only the order is kept
+					item.group = undefined;
 				}
 
 				if (menu.id === MenuId.ViewContainerTitle && !menuItem.when?.includes('viewContainer == workbench.view.debug')) {
