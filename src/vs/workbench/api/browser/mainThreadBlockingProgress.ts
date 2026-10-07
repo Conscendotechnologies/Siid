@@ -4,131 +4,142 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
-import { IBlockingProgressDialogService } from '../../services/progress/common/blockingProgressDialog.js';
-import { Codicon } from '../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../base/common/themables.js';
+import { CommandsRegistry, ICommandService } from '../../../platform/commands/common/commands.js';
+import { IBlockingProgressDialogService, IBlockingProgressHandle, IBlockingProgressAction, IBlockingProgressStep, BlockingProgressMode } from '../../services/progress/browser/blockingProgressDialog.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../common/contributions.js';
-import { IHostService } from '../../services/host/browser/host.js';
+import { IExtensionService } from '../../services/extensions/common/extensions.js';
 
+/** An extension that never closes its progress can not lock the UI longer than this. */
+const MAX_TIMEOUT = 15 * 60_000;
+const MODES: readonly string[] = ['blocking', 'dismissible', 'background'];
+
+export interface IExtensionProgressOptions {
+	title: string;
+	message?: string;
+	mode?: BlockingProgressMode;
+	details?: string[];
+	total?: number;
+	cancellable?: boolean | string;
+	delay?: number;
+	timeout?: number;
+}
+
+/** Actions from an extension can not carry callbacks, so they run a command. */
+export interface IExtensionProgressAction {
+	label: string;
+	primary?: boolean;
+	/** Omit to just dismiss. */
+	command?: string;
+	args?: unknown[];
+}
+
+export interface IExtensionProgressResult {
+	message?: string;
+	actions?: IExtensionProgressAction[];
+}
+
+export type ExtensionProgressOp =
+	| { op: 'report'; step: IBlockingProgressStep }
+	| { op: 'setTitle'; title: string }
+	| { op: 'complete' | 'fail'; result?: IExtensionProgressResult }
+	| { op: 'close' }
+	| { op: 'state' };
+
+export interface IExtensionProgressState {
+	cancelled: boolean;
+}
+
+export const SHOW_PROGRESS_COMMAND = '_siid.progress.show';
+export const UPDATE_PROGRESS_COMMAND = '_siid.progress.update';
+
+/**
+ * Lets extensions use {@link IBlockingProgressDialogService}: `show` returns an id,
+ * `update` drives it and returns the state (`undefined` once the task is gone).
+ */
 export class MainThreadBlockingProgress extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.mainThreadBlockingProgress';
 
-	private currentDialog: { close: () => void; updateMessage: (message: string) => void; updateTitle: (title: string) => void; updateProgress: (current: number, total: number) => void; showRestartButton: (onRestart: () => void, onLater: () => void) => void } | undefined;
+	private nextId = 1;
+	private readonly tasks = new Map<string, { handle: IBlockingProgressHandle; state: IExtensionProgressState }>();
 
 	constructor(
-		@IBlockingProgressDialogService private readonly blockingProgressService: IBlockingProgressDialogService,
-		@IHostService private readonly hostService: IHostService
+		@IBlockingProgressDialogService private readonly progressService: IBlockingProgressDialogService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IExtensionService extensionService: IExtensionService
 	) {
 		super();
-		console.log('[MainThreadBlockingProgress] Constructor called, service:', blockingProgressService);
 
-		this.registerCommands();
+		this._register(CommandsRegistry.registerCommand(SHOW_PROGRESS_COMMAND, (_accessor, options: IExtensionProgressOptions) => this.show(options)));
+		this._register(CommandsRegistry.registerCommand(UPDATE_PROGRESS_COMMAND, (_accessor, id: string, update: ExtensionProgressOp) => this.update(id, update)));
+
+		// The tasks belong to extension code, which is gone once the hosts stop
+		this._register(extensionService.onWillStop(() => this.closeAll()));
 	}
 
-	private registerCommands(): void {
-		// Register internal command to show blocking progress
-		this._register(CommandsRegistry.registerCommand('_internal.showBlockingProgress', async (_accessor, title: string, message: string, details?: string[]) => {
-			console.log('[MainThreadBlockingProgress] _internal.showBlockingProgress called', { title, message, details });
+	private show(options: IExtensionProgressOptions): string {
+		if (!options || typeof options.title !== 'string') {
+			throw new Error('progress options need a title');
+		}
+		const handle = this.progressService.show({
+			title: options.title,
+			message: typeof options.message === 'string' ? options.message : undefined,
+			mode: MODES.includes(options.mode as string) ? options.mode : undefined,
+			details: Array.isArray(options.details) ? options.details.filter(detail => typeof detail === 'string') : undefined,
+			total: typeof options.total === 'number' ? options.total : undefined,
+			cancellable: typeof options.cancellable === 'string' || typeof options.cancellable === 'boolean' ? options.cancellable : undefined,
+			delay: typeof options.delay === 'number' ? options.delay : undefined,
+			timeout: Math.min(typeof options.timeout === 'number' && options.timeout > 0 ? options.timeout : MAX_TIMEOUT, MAX_TIMEOUT),
+			source: 'extension'
+		});
 
-			// Close any existing dialog first
-			if (this.currentDialog) {
-				console.log('[MainThreadBlockingProgress] Closing existing dialog');
-				this.currentDialog.close();
-			}
+		const id = `ext${this.nextId++}`;
+		const state: IExtensionProgressState = { cancelled: false };
+		this.tasks.set(id, { handle, state });
+		handle.onDidCancel(() => state.cancelled = true);
+		handle.onDidClose(() => this.tasks.delete(id));
+		return id;
+	}
 
-			// Show new dialog
-			console.log('[MainThreadBlockingProgress] Calling blockingProgressService.show');
-			this.currentDialog = this.blockingProgressService.show({
-				title,
-				message,
-				details,
-				icon: ThemeIcon.fromId(Codicon.sync.id)
-			});
-			console.log('[MainThreadBlockingProgress] Dialog shown successfully');
+	private update(id: string, update: ExtensionProgressOp): IExtensionProgressState | undefined {
+		const task = this.tasks.get(id);
+		if (!task) {
+			return undefined;
+		}
+		const { handle, state } = task;
+		switch (update.op) {
+			case 'report': handle.report(update.step); break;
+			case 'setTitle': handle.setTitle(update.title); break;
+			case 'complete': handle.complete(this.toResult(update.result)); break;
+			case 'fail': handle.fail(this.toResult(update.result)); break;
+			case 'close': handle.close(); break;
+		}
+		return { ...state };
+	}
 
-			return true;
-		}));
-
-		// Register internal command to update blocking progress message
-		this._register(CommandsRegistry.registerCommand('_internal.updateBlockingProgressMessage', async (_accessor, message: string) => {
-			console.log('[MainThreadBlockingProgress] _internal.updateBlockingProgressMessage called', { message });
-			if (this.currentDialog) {
-				this.currentDialog.updateMessage(message);
-				return true;
-			} else {
-				console.log('[MainThreadBlockingProgress] No dialog to update');
-				return false;
-			}
-		}));
-
-		// Register internal command to update blocking progress title
-		this._register(CommandsRegistry.registerCommand('_internal.updateBlockingProgressTitle', async (_accessor, title: string) => {
-			console.log('[MainThreadBlockingProgress] _internal.updateBlockingProgressTitle called', { title });
-			if (this.currentDialog) {
-				this.currentDialog.updateTitle(title);
-				return true;
-			} else {
-				console.log('[MainThreadBlockingProgress] No dialog to update');
-				return false;
-			}
-		}));
-
-		// Register internal command to update blocking progress
-		this._register(CommandsRegistry.registerCommand('_internal.updateBlockingProgress', async (_accessor, current: number, total: number) => {
-			console.log('[MainThreadBlockingProgress] _internal.updateBlockingProgress called', { current, total });
-			if (this.currentDialog) {
-				this.currentDialog.updateProgress(current, total);
-				return true;
-			} else {
-				console.log('[MainThreadBlockingProgress] No dialog to update');
-				return false;
-			}
-		}));
-
-		// Register internal command to show restart buttons
-		this._register(CommandsRegistry.registerCommand('_internal.showBlockingProgressRestartButtons', async (_accessor) => {
-			console.log('[MainThreadBlockingProgress] _internal.showBlockingProgressRestartButtons called');
-			if (this.currentDialog) {
-				this.currentDialog.showRestartButton(
-					// onRestart callback
-					async () => {
-						console.log('[MainThreadBlockingProgress] Reload Window clicked - executing reload');
-						// Use IHostService to reload the window
-						await this.hostService.reload();
-					},
-					// onLater callback
-					() => {
-						console.log('[MainThreadBlockingProgress] Later clicked');
-						// Dialog will close itself via the Later button's click handler
+	private toResult(result: IExtensionProgressResult | undefined) {
+		return result && {
+			message: result.message,
+			actions: result.actions?.map((action): IBlockingProgressAction => ({
+				label: action.label,
+				primary: action.primary,
+				run: () => {
+					if (typeof action.command === 'string') {
+						this.commandService.executeCommand(action.command, ...(Array.isArray(action.args) ? action.args : []));
 					}
-				);
-				return true;
-			} else {
-				console.log('[MainThreadBlockingProgress] No dialog to show restart buttons');
-				return false;
-			}
-		}));
+				}
+			}))
+		};
+	}
 
-		// Register internal command to close blocking progress
-		this._register(CommandsRegistry.registerCommand('_internal.closeBlockingProgress', async () => {
-			console.log('[MainThreadBlockingProgress] _internal.closeBlockingProgress called');
-			if (this.currentDialog) {
-				console.log('[MainThreadBlockingProgress] Closing current dialog');
-				this.currentDialog.close();
-				this.currentDialog = undefined;
-			} else {
-				console.log('[MainThreadBlockingProgress] No dialog to close');
-			}
-			return true;
-		}));
+	private closeAll(): void {
+		for (const { handle } of [...this.tasks.values()]) {
+			handle.close();
+		}
 	}
 
 	override dispose(): void {
-		if (this.currentDialog) {
-			this.currentDialog.close();
-		}
+		this.closeAll();
 		super.dispose();
 	}
 }

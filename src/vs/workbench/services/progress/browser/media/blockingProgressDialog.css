@@ -1,0 +1,165 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Brand accent can be overridden per theme; defaults to the theme's focus color. */
+.siid-progress-overlay {
+	--siid-progress-accent: var(--vscode-focusBorder);
+	position: fixed;
+	inset: 0;
+	z-index: 2574; /* just below workbench dialogs (2575) so quit/confirm dialogs stay reachable */
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: transparent;
+}
+
+.siid-progress-dialog {
+	box-sizing: border-box;
+	width: 65vw;
+	min-width: 360px;
+	max-width: 900px;
+	max-height: 90vh;
+	overflow-y: auto;
+	padding: 32px 36px;
+	color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
+	background: var(--vscode-editorWidget-background);
+	border: 1px solid var(--siid-progress-accent);
+	border-radius: 4px;
+	box-shadow: 0 8px 32px var(--vscode-widget-shadow);
+	outline: none;
+}
+
+.siid-progress-dialog.shake {
+	animation: siid-progress-shake 0.4s ease-out;
+}
+
+.siid-progress-row + .siid-progress-row {
+	margin-top: 24px;
+	padding-top: 24px;
+	border-top: 1px solid var(--vscode-widget-border, var(--vscode-editorWidget-border));
+}
+
+.siid-progress-row-title {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	font-size: 16px;
+	font-weight: 600;
+	color: var(--siid-progress-accent);
+}
+
+.siid-progress-row-message {
+	margin: 12px 0;
+	font-size: 14px;
+	line-height: 1.5;
+}
+
+.siid-progress-row.failed .siid-progress-row-title {
+	color: var(--vscode-errorForeground);
+}
+
+.siid-progress-details {
+	margin: 12px 0;
+	padding: 10px 14px;
+	font-size: 13px;
+	line-height: 1.6;
+	color: var(--vscode-descriptionForeground);
+	background: var(--vscode-textBlockQuote-background);
+	border-left: 4px solid var(--siid-progress-accent);
+}
+
+.siid-progress-details-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-weight: 600;
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.siid-progress-bar {
+	height: 8px;
+	overflow: hidden;
+	background: var(--vscode-progressBar-background);
+	background: color-mix(in srgb, var(--vscode-progressBar-background) 20%, transparent);
+	border-radius: 4px;
+}
+
+.siid-progress-bar-fill {
+	height: 100%;
+	width: 0;
+	background: var(--vscode-progressBar-background);
+	border-radius: 4px;
+	transition: width 0.3s ease-out;
+}
+
+.siid-progress-bar.indeterminate .siid-progress-bar-fill {
+	width: 30%;
+	animation: siid-progress-slide 1.6s ease-in-out infinite;
+}
+
+.siid-progress-text {
+	margin-top: 6px;
+	font-size: 12px;
+	text-align: right;
+	color: var(--vscode-descriptionForeground);
+}
+
+.siid-progress-row-actions,
+.siid-progress-footer {
+	display: flex;
+	justify-content: flex-end;
+	align-items: center;
+	gap: 8px;
+	margin-top: 16px;
+}
+
+.siid-progress-row-actions:empty {
+	display: none;
+}
+
+.siid-progress-footer {
+	padding-top: 16px;
+	border-top: 1px solid var(--vscode-widget-border, var(--vscode-editorWidget-border));
+}
+
+.siid-progress-footer .siid-progress-spacer {
+	flex: 1;
+}
+
+.siid-progress-footer .siid-progress-force-close {
+	font-size: 12px;
+	color: var(--vscode-textLink-foreground);
+	background: none;
+	border: none;
+	cursor: pointer;
+	text-decoration: underline;
+}
+
+.siid-progress-dialog .monaco-button {
+	width: auto;
+	padding: 4px 14px;
+}
+
+@keyframes siid-progress-slide {
+	0% { margin-left: -30%; }
+	100% { margin-left: 100%; }
+}
+
+@keyframes siid-progress-shake {
+	0%, 100% { transform: translateX(0); }
+	20%, 60% { transform: translateX(-4px); }
+	40%, 80% { transform: translateX(4px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.siid-progress-dialog.shake,
+	.siid-progress-bar.indeterminate .siid-progress-bar-fill {
+		animation: none;
+	}
+
+	.siid-progress-bar-fill {
+		transition: none;
+	}
+}

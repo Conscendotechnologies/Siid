@@ -586,43 +586,10 @@ export class ExtHostApiCommands {
 		newCommands.forEach(commands.registerApiCommand, commands);
 
 		this._registerValidateWhenClausesCommand(commands);
-		this._registerBlockingProgressCommands(commands);
 	}
 
 	private static _registerValidateWhenClausesCommand(commands: ExtHostCommands) {
 		commands.registerCommand(false, '_validateWhenClauses', validateWhenClauses);
-	}
-
-	private static _registerBlockingProgressCommands(commands: ExtHostCommands) {
-		// Register command to show blocking progress dialog
-		commands.registerCommand(false, '_showBlockingProgress', async (title: string, message: string, details?: string[]) => {
-			return commands.executeCommand('_internal.showBlockingProgress', title, message, details);
-		});
-
-		// Register command to update blocking progress message
-		commands.registerCommand(false, '_updateBlockingProgressMessage', async (message: string) => {
-			return commands.executeCommand('_internal.updateBlockingProgressMessage', message);
-		});
-
-		// Register command to update blocking progress title
-		commands.registerCommand(false, '_updateBlockingProgressTitle', async (title: string) => {
-			return commands.executeCommand('_internal.updateBlockingProgressTitle', title);
-		});
-
-		// Register command to update blocking progress
-		commands.registerCommand(false, '_updateBlockingProgress', async (current: number, total: number) => {
-			return commands.executeCommand('_internal.updateBlockingProgress', current, total);
-		});
-
-		// Register command to show restart buttons on blocking progress
-		commands.registerCommand(false, '_showBlockingProgressRestartButtons', async () => {
-			return commands.executeCommand('_internal.showBlockingProgressRestartButtons');
-		});
-
-		// Register command to close blocking progress dialog
-		commands.registerCommand(false, '_closeBlockingProgress', async () => {
-			return commands.executeCommand('_internal.closeBlockingProgress');
-		});
 	}
 }
 
