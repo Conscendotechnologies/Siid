@@ -4,7 +4,7 @@ name: Update Apex LSP jar
 # poll upstream on a schedule and act ONLY when the jar's checksum changes.
 on:
   schedule:
-    - cron: '0 6 * * *' # daily at 06:00 UTC
+    - cron: '0 6 * * 1' # daily at 06:00 UTC
   workflow_dispatch: {} # manual "Run workflow" button / API
 
 env:
