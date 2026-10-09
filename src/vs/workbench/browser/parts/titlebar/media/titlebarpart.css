@@ -544,3 +544,10 @@
 .circular-button:hover .person-icon path {
   fill: orange; /* icon becomes orange */
 }
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left > .titlebar-left-actions {
+	display: flex;
+	align-items: center;
+	flex: none;
+	-webkit-app-region: no-drag;
+}

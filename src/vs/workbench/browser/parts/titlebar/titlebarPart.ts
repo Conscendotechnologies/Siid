@@ -31,7 +31,7 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { WindowTitle } from './windowTitle.js';
 import { CommandCenterControl } from './commandCenterControl.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { MenuWorkbenchToolBar, HiddenItemStrategy, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../../common/activity.js';
 import { AccountsActivityActionViewItem, isAccountsActionVisible, SimpleAccountActivityActionViewItem, SimpleGlobalActivityActionViewItem } from '../globalCompositeBar.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -254,6 +254,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private title!: HTMLElement;
 
 	private leftContent!: HTMLElement;
+	private leftActionsElement: HTMLElement | undefined;
 	private centerContent!: HTMLElement;
 	private rightContent!: HTMLElement;
 
@@ -410,7 +411,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		this.customMenubar.value = this.instantiationService.createInstance(CustomMenubarControl);
 
-		this.menubar = append(this.leftContent, $('div.menubar'));
+		this.menubar = $('div.menubar');
+		this.leftContent.insertBefore(this.menubar, this.leftActionsElement ?? null);
 		this.menubar.setAttribute('role', 'menubar');
 
 		this._register(this.customMenubar.value.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
@@ -469,6 +471,17 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			this.currentMenubarVisibility !== 'compact'
 		) {
 			this.installMenubar();
+		}
+
+		// Extension actions after the menu bar
+		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle) && !this.isAuxiliary && !this.isCompact) {
+			this.leftActionsElement = append(this.leftContent, $('div.titlebar-left-actions'));
+			this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.leftActionsElement, MenuId.TitleBarLeft, {
+				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+				toolbarOptions: { primaryGroup: () => true },
+				telemetrySource: 'titleBarLeft',
+				hoverDelegate: this.hoverDelegate
+			}));
 		}
 
 		// Title

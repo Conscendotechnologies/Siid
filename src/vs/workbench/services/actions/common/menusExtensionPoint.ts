@@ -134,6 +134,21 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.opy', "'Copy as' submenu in the top level Edit menu")
 	},
 	{
+		key: 'titleBar/left',
+		id: MenuId.TitleBarLeft,
+		description: localize('menus.titleBarLeft', "Actions on the left of the title bar, after the menu bar. Use \"group\": \"x@<order>\" to order them.")
+	},
+	{
+		key: 'titleBar/right',
+		id: MenuId.TitleBar,
+		description: localize('menus.titleBarRight', "Actions on the right of the title bar, outside the command center. Use the \"navigation\" group to keep them visible; others go to the \"...\" menu.")
+	},
+	{
+		key: 'commandCenter',
+		id: MenuId.CommandCenter,
+		description: localize('menus.commandCenter', "Actions inside the command center (search) container. Use \"group\": \"x@<order>\": an order below 101 is left of the search box, above 101 is right of it.")
+	},
+	{
 		key: 'menuBar/main',
 		id: MenuId.MenubarMainMenu,
 		description: localize('menus.menuBarMain', "The top level menu bar. Contribute a submenu to add a new top level menu; use \"group\": \"menubar@<order>\" to position it (File 1, Terminal 7, Forge 7.5, Help 8).")
@@ -1069,8 +1084,8 @@ menusExtensionPoint.setHandler(extensions => {
 					}
 				}
 
-				if (menu.id === MenuId.MenubarMainMenu) {
-					// The menu bar only renders the default group, so only the order is kept
+				if (menu.id === MenuId.MenubarMainMenu || menu.id === MenuId.CommandCenter || menu.id === MenuId.TitleBarLeft) {
+					// These bars only render the default group, so only the order is kept
 					item.group = undefined;
 				}
 
