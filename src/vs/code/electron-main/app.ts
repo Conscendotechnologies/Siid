@@ -122,6 +122,8 @@ import { NativeMcpDiscoveryHelperService } from '../../platform/mcp/node/nativeM
 import { IWebContentExtractorService } from '../../platform/webContentExtractor/common/webContentExtractor.js';
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
+import { setupSalesforceCliPath } from './salesforceCliSetup.js';
+import { setupJavaEnvironment } from './javaSetup.js';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -536,6 +538,16 @@ export class CodeApplication extends Disposable {
 		if (isWindows && win32AppUserModelId) {
 			app.setAppUserModelId(win32AppUserModelId);
 		}
+
+		// Setup Salesforce CLI PATH on Windows
+		// This configures the bundled Salesforce CLI to be available in the user's PATH
+		// for use in terminals and system commands
+		await setupSalesforceCliPath(this.logService, this.stateService);
+
+		// Setup Java environment (JDK/JRE)
+		// This detects and configures Java for Salesforce development
+		// Java may be installed by the Siid installer or already present on the system
+		await setupJavaEnvironment(this.logService, this.stateService);
 
 		// Fix native tabs on macOS 10.13
 		// macOS enables a compatibility patch for any bundle ID beginning with

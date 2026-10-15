@@ -1306,6 +1306,920 @@ begin
   Result := not IsBackgroundUpdate();
 end;
 
+// Salesforce CLI and JDK Download and Installation
+var
+  JdkInstallSucceeded: Boolean;
+  SfCliInstallSucceeded: Boolean;
+  TestPage: TWizardPage;
+  // Live status controls on the Dependency Check page
+  SfCliNameLabel: TNewStaticText;
+  SfCliStateLabel: TNewStaticText;
+  JavaNameLabel: TNewStaticText;
+  JavaStateLabel: TNewStaticText;
+  DepFooterLabel: TNewStaticText;
+  NodeNameLabel: TNewStaticText;
+  NodeStateLabel: TNewStaticText;
+  SfCliPresent: Boolean;
+  JavaPresent: Boolean;
+  NodePresent: Boolean;
+  // Multi-JDK selection (only surfaced when 2+ compatible JDKs are detected).
+  JdkComboBox: TNewComboBox;
+  DetectedJdkHomes: TArrayOfString;   { parallel to combo items; JAVA_HOME per entry }
+  DetectedJdkMajors: TArrayOfInteger; { parallel: major version per entry }
+  SelectedJavaHome: String;           { chosen JAVA_HOME to persist, '' = leave as-is }
+
+const
+  // Java JDK 17 and Node.js LTS are installed via Winget (automatic PATH setup).
+  ZULU_JDK_PACKAGE = 'Azul.Zulu.17.JDK';
+  JDK_TARGET_VERSION = '17';
+  NODEJS_PACKAGE = 'OpenJS.NodeJS.LTS';
+  // Salesforce has no official 'sf' Winget package; the supported install path
+  // is npm. (The old direct-download URL now returns HTTP 403.)
+  SFCLI_NPM_PACKAGE = '@salesforce/cli';
+
+function IsJavaInstalled(): Boolean;
+var
+  JavaHome: String;
+  JavaExe: String;
+  ResultCode: Integer;
+begin
+  Result := False;
+
+  // Check if JAVA_HOME is set in Machine environment
+  if RegQueryStringValue(HKLM, 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'JAVA_HOME', JavaHome) then
+  begin
+    JavaExe := AddBackslash(JavaHome) + 'bin\java.exe';
+    if FileExists(JavaExe) then
+    begin
+      Log('Found existing Java installation at JAVA_HOME: ' + JavaHome);
+      Result := True;
+      Exit;
+    end;
+  end;
+
+  // Check if JAVA_HOME is set in User environment
+  if RegQueryStringValue(HKCU, 'Environment', 'JAVA_HOME', JavaHome) then
+  begin
+    JavaExe := AddBackslash(JavaHome) + 'bin\java.exe';
+    if FileExists(JavaExe) then
+    begin
+      Log('Found existing Java installation at user JAVA_HOME: ' + JavaHome);
+      Result := True;
+      Exit;
+    end;
+  end;
+
+  // Check if java.exe is accessible via PATH
+  if Exec('cmd.exe', '/C java -version', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  begin
+    if ResultCode = 0 then
+    begin
+      Log('Found Java in system PATH');
+      Result := True;
+      Exit;
+    end;
+  end;
+
+  Log('No existing Java installation found');
+end;
+
+function IsNodeInstalled(): Boolean;
+var
+  ResultCode: Integer;
+begin
+  Result := False;
+
+  // npm is what we actually need (to install the CLI); require both node and npm.
+  if Exec('cmd.exe', '/C node --version >nul 2>&1 && npm --version >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  begin
+    if ResultCode = 0 then
+    begin
+      Log('Found Node.js and npm in system PATH');
+      Result := True;
+      Exit;
+    end;
+  end;
+
+  Log('No existing Node.js/npm installation found');
+end;
+
+function GetInstalledNodeVersion(): String;
+var
+  ResultCode: Integer;
+  TempFile: String;
+  Lines: TArrayOfString;
+begin
+  Result := '';
+  TempFile := ExpandConstant('{tmp}\nodeversion.txt');
+
+  if Exec('cmd.exe', '/C node --version > "' + TempFile + '" 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  begin
+    if (ResultCode = 0) and FileExists(TempFile) then
+    begin
+      if LoadStringsFromFile(TempFile, Lines) then
+      begin
+        if GetArrayLength(Lines) > 0 then
+          Result := Trim(Lines[0]);
+        DeleteFile(TempFile);
+        Exit;
+      end;
+    end;
+  end;
+
+  DeleteFile(TempFile);
+end;
+
+function GetInstalledJavaVersion(): String;
+var
+  ResultCode: Integer;
+  TempFile: String;
+  Lines: TArrayOfString;
+begin
+  Result := '';
+  TempFile := ExpandConstant('{tmp}\javaversion.txt');
+
+  if Exec('cmd.exe', '/C java -version 2> "' + TempFile + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  begin
+    if FileExists(TempFile) then
+    begin
+      if LoadStringsFromFile(TempFile, Lines) then
+      begin
+        if GetArrayLength(Lines) > 0 then
+        begin
+          Result := Trim(Lines[0]);
+        end;
+        DeleteFile(TempFile);
+        Exit;
+      end;
+    end;
+  end;
+
+  DeleteFile(TempFile);
+end;
+
+{ Reads the major version (e.g. 17, 21) of the java.exe under the given JDK home.
+  Returns 0 if it can't be determined. Salesforce CLI needs 17+. }
+function GetJdkMajorVersion(const JavaHome: String): Integer;
+var
+  ResultCode: Integer;
+  TempFile: String;
+  Lines: TArrayOfString;
+  Line, VerStr: String;
+  P, Q: Integer;
+  JavaExe: String;
+begin
+  Result := 0;
+  JavaExe := AddBackslash(JavaHome) + 'bin\java.exe';
+  if not FileExists(JavaExe) then
+    Exit;
+
+  TempFile := ExpandConstant('{tmp}\jdkmajor.txt');
+  { Wrap the whole command line (program + redirect) in one outer quote pair so
+    cmd /C strips exactly that pair; nesting quotes around just the exe breaks
+    when a redirect follows, and every JDK path contains a space. }
+  if Exec('cmd.exe', '/C ""' + JavaExe + '" -version 2> "' + TempFile + '""', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  begin
+    if FileExists(TempFile) and LoadStringsFromFile(TempFile, Lines) and (GetArrayLength(Lines) > 0) then
+    begin
+      { First line looks like: openjdk version "17.0.10" 2024-01-16 }
+      Line := Lines[0];
+      P := Pos('"', Line);
+      if P > 0 then
+      begin
+        VerStr := Copy(Line, P + 1, Length(Line) - P);
+        Q := Pos('"', VerStr);
+        if Q > 0 then
+          VerStr := Copy(VerStr, 1, Q - 1);
+        { "1.8.0_x" (old scheme) -> major 8; "17.0.x" -> major 17 }
+        Q := Pos('.', VerStr);
+        if Q > 0 then
+        begin
+          if Copy(VerStr, 1, 2) = '1.' then
+          begin
+            VerStr := Copy(VerStr, 3, Length(VerStr));
+            Q := Pos('.', VerStr);
+            if Q > 0 then
+              VerStr := Copy(VerStr, 1, Q - 1);
+          end
+          else
+            VerStr := Copy(VerStr, 1, Q - 1);
+        end;
+        Result := StrToIntDef(Trim(VerStr), 0);
+      end;
+    end;
+  end;
+  DeleteFile(TempFile);
+end;
+
+{ Best-effort vendor name from a JDK install path, for friendlier labels. }
+function JdkVendorFromPath(const JavaHome: String): String;
+var
+  Lower: String;
+begin
+  Lower := Lowercase(JavaHome);
+  if Pos('zulu', Lower) > 0 then
+    Result := 'Azul Zulu'
+  else if (Pos('adoptium', Lower) > 0) or (Pos('temurin', Lower) > 0) then
+    Result := 'Eclipse Temurin'
+  else if Pos('microsoft', Lower) > 0 then
+    Result := 'Microsoft'
+  else if (Pos('corretto', Lower) > 0) or (Pos('amazon', Lower) > 0) then
+    Result := 'Amazon Corretto'
+  else if (Pos('jdk-', Lower) > 0) and (Pos('oracle', Lower) > 0) then
+    Result := 'Oracle'
+  else if Pos('liberica', Lower) > 0 then
+    Result := 'BellSoft Liberica'
+  else
+    Result := '';
+end;
+
+{ Adds a JDK home to the parallel arrays if it isn't already present, the java.exe
+  exists, and its major version meets the Salesforce CLI minimum (17+). }
+procedure AddJdkCandidate(const JavaHome: String; var Homes: TArrayOfString; var Labels: TArrayOfString);
+var
+  I, Major: Integer;
+  Normalized, Vendor, Lbl, FolderName: String;
+begin
+  if JavaHome = '' then
+    Exit;
+  Normalized := RemoveBackslash(JavaHome);
+  if not FileExists(AddBackslash(Normalized) + 'bin\java.exe') then
+    Exit;
+  { De-dupe (case-insensitive). }
+  for I := 0 to GetArrayLength(Homes) - 1 do
+    if CompareText(Homes[I], Normalized) = 0 then
+      Exit;
+
+  Major := GetJdkMajorVersion(Normalized);
+  if Major < 17 then
+  begin
+    Log('Skipping JDK (major ' + IntToStr(Major) + ', below 17): ' + Normalized);
+    Exit;
+  end;
+
+  I := GetArrayLength(Homes);
+  SetArrayLength(Homes, I + 1);
+  SetArrayLength(Labels, I + 1);
+  SetArrayLength(DetectedJdkMajors, I + 1);
+  Homes[I] := Normalized;
+  DetectedJdkMajors[I] := Major;
+  { Label: "Java 21  (Microsoft)  -  jdk-21.0.11.10-hotspot". Use just the JDK
+    folder name (not the full path) so the closed combo box and the dropdown
+    popup fit the same width without clipping. The full path still lives in
+    DetectedJdkHomes and is shown in the status/log. }
+  Vendor := JdkVendorFromPath(Normalized);
+  FolderName := ExtractFileName(Normalized);
+  if FolderName = '' then
+    FolderName := Normalized;   { fallback for odd paths (e.g. a drive root) }
+  Lbl := 'Java ' + IntToStr(Major);
+  if Vendor <> '' then
+    Lbl := Lbl + '  (' + Vendor + ')';
+  Lbl := Lbl + '  -  ' + FolderName;
+  Labels[I] := Lbl;
+  Log('Detected compatible JDK (major ' + IntToStr(Major) + '): ' + Normalized);
+end;
+
+{ Scans a vendor registry hive (e.g. Adoptium\JDK) whose subkeys are versions,
+  each with a \hotspot\MSI (or \JavaHome) value pointing at the install path. }
+procedure ScanVendorRegistry(RootKey: Integer; const BaseKey: String; var Homes: TArrayOfString; var Labels: TArrayOfString);
+var
+  Versions: TArrayOfString;
+  I: Integer;
+  JavaHome: String;
+begin
+  if not RegGetSubkeyNames(RootKey, BaseKey, Versions) then
+    Exit;
+  for I := 0 to GetArrayLength(Versions) - 1 do
+  begin
+    JavaHome := '';
+    { Adoptium/Temurin layout: <ver>\hotspot\MSI, value "Path". }
+    if RegQueryStringValue(RootKey, BaseKey + '\' + Versions[I] + '\hotspot\MSI', 'Path', JavaHome) then
+      AddJdkCandidate(JavaHome, Homes, Labels)
+    { JavaSoft (Oracle) layout: <ver>, value "JavaHome". }
+    else if RegQueryStringValue(RootKey, BaseKey + '\' + Versions[I], 'JavaHome', JavaHome) then
+      AddJdkCandidate(JavaHome, Homes, Labels);
+  end;
+end;
+
+{ Scans a parent directory (e.g. C:\Program Files\Java) for JDK subfolders. }
+procedure ScanJdkParentDir(const ParentDir: String; var Homes: TArrayOfString; var Labels: TArrayOfString);
+var
+  FindRec: TFindRec;
+begin
+  if not DirExists(ParentDir) then
+    Exit;
+  if FindFirst(AddBackslash(ParentDir) + '*', FindRec) then
+  begin
+    try
+      repeat
+        if ((FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0)
+           and (FindRec.Name <> '.') and (FindRec.Name <> '..') then
+          AddJdkCandidate(AddBackslash(ParentDir) + FindRec.Name, Homes, Labels);
+      until not FindNext(FindRec);
+    finally
+      FindClose(FindRec);
+    end;
+  end;
+end;
+
+{ Builds the list of all detected compatible (17+) JDK homes across common
+  vendor registry keys and install directories. }
+procedure EnumerateJdks(var Homes: TArrayOfString; var Labels: TArrayOfString);
+var
+  CurrentHome: String;
+begin
+  SetArrayLength(Homes, 0);
+  SetArrayLength(Labels, 0);
+  SetArrayLength(DetectedJdkMajors, 0);
+
+  { Vendor registry keys (32- and 64-bit views handled by Inno automatically). }
+  ScanVendorRegistry(HKLM, 'SOFTWARE\Eclipse Adoptium\JDK', Homes, Labels);
+  ScanVendorRegistry(HKLM, 'SOFTWARE\Eclipse Foundation\JDK', Homes, Labels);
+  ScanVendorRegistry(HKLM, 'SOFTWARE\Azul Systems\Zulu', Homes, Labels);
+  ScanVendorRegistry(HKLM, 'SOFTWARE\Microsoft\JDK', Homes, Labels);
+  ScanVendorRegistry(HKLM, 'SOFTWARE\JavaSoft\JDK', Homes, Labels);
+  ScanVendorRegistry(HKLM, 'SOFTWARE\JavaSoft\Java Development Kit', Homes, Labels);
+
+  { Common install directories. }
+  ScanJdkParentDir(ExpandConstant('{commonpf}\Java'), Homes, Labels);
+  ScanJdkParentDir(ExpandConstant('{commonpf}\Eclipse Adoptium'), Homes, Labels);
+  ScanJdkParentDir(ExpandConstant('{commonpf}\Zulu'), Homes, Labels);
+  ScanJdkParentDir(ExpandConstant('{commonpf}\Microsoft'), Homes, Labels);
+
+  { Whatever JAVA_HOME currently points at (may be outside the above). }
+  if RegQueryStringValue(HKLM, 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'JAVA_HOME', CurrentHome) then
+    AddJdkCandidate(CurrentHome, Homes, Labels);
+  if RegQueryStringValue(HKCU, 'Environment', 'JAVA_HOME', CurrentHome) then
+    AddJdkCandidate(CurrentHome, Homes, Labels);
+end;
+
+function GetInstalledSfCliVersion(): String;
+var
+  ResultCode: Integer;
+  TempFile: String;
+  Lines: TArrayOfString;
+begin
+  Result := '';
+  TempFile := ExpandConstant('{tmp}\sfversion.txt');
+
+  // Try 'sf' command first
+  if Exec('cmd.exe', '/C sf --version > "' + TempFile + '" 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  begin
+    if (ResultCode = 0) and FileExists(TempFile) then
+    begin
+      if LoadStringsFromFile(TempFile, Lines) then
+      begin
+        if GetArrayLength(Lines) > 0 then
+        begin
+          Result := Trim(Lines[0]);
+        end;
+        DeleteFile(TempFile);
+        Exit;
+      end;
+    end;
+  end;
+
+  // Try 'sfdx' command (legacy)
+  if Exec('cmd.exe', '/C sfdx --version > "' + TempFile + '" 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  begin
+    if (ResultCode = 0) and FileExists(TempFile) then
+    begin
+      if LoadStringsFromFile(TempFile, Lines) then
+      begin
+        if GetArrayLength(Lines) > 0 then
+        begin
+          Result := Trim(Lines[0]);
+        end;
+        DeleteFile(TempFile);
+        Exit;
+      end;
+    end;
+  end;
+
+  DeleteFile(TempFile);
+end;
+
+function IsSalesforceCliInstalled(): Boolean;
+var
+  ResultCode: Integer;
+  SfPath: String;
+  SfdxPath: String;
+begin
+  Result := False;
+
+  // Check if 'sf' command is available in PATH
+  if Exec('cmd.exe', '/C sf --version', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  begin
+    if ResultCode = 0 then
+    begin
+      Log('Found Salesforce CLI (sf) in system PATH');
+      Result := True;
+      Exit;
+    end;
+  end;
+
+  // Check if 'sfdx' command is available in PATH (legacy)
+  if Exec('cmd.exe', '/C sfdx --version', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  begin
+    if ResultCode = 0 then
+    begin
+      Log('Found Salesforce CLI (sfdx) in system PATH');
+      Result := True;
+      Exit;
+    end;
+  end;
+
+  // Check common installation paths
+  SfPath := ExpandConstant('{localappdata}\sf\bin\sf.exe');
+  if FileExists(SfPath) then
+  begin
+    Log('Found Salesforce CLI at: ' + SfPath);
+    Result := True;
+    Exit;
+  end;
+
+  SfdxPath := ExpandConstant('{localappdata}\sfdx\bin\sfdx.exe');
+  if FileExists(SfdxPath) then
+  begin
+    Log('Found Salesforce CLI (sfdx) at: ' + SfdxPath);
+    Result := True;
+    Exit;
+  end;
+
+  Log('No existing Salesforce CLI installation found');
+end;
+
+{ Colored state tag on the right of a dependency row. A status glyph is derived
+  from the colour so it always matches: green -> check, red -> cross,
+  olive (pending/action needed) -> bullet, others (e.g. navy "in progress") none. }
+procedure SetDepState(Lbl: TNewStaticText; const Text: String; Color: TColor);
+var
+  Glyph: String;
+begin
+  if Lbl = nil then
+    Exit;
+  if Color = clGreen then
+    Glyph := #$2713 + '  '        { check mark }
+  else if Color = clRed then
+    Glyph := #$2717 + '  '        { cross mark }
+  else if Color = clOlive then
+    Glyph := #$2022 + '  '        { bullet - needs attention / pending }
+  else
+    Glyph := '';                  { in-progress: no glyph, avoids flicker }
+  Lbl.Caption := Glyph + Text;
+  Lbl.Font.Color := Color;
+end;
+
+{ Builds one dependency row: a bold name label on the left and a state tag on
+  the right. Returns the state label so callers can update it live. }
+function CreateDepRow(const Name: String; Top: Integer;
+  var NameLbl: TNewStaticText; var StateLbl: TNewStaticText): Integer;
+begin
+  NameLbl := TNewStaticText.Create(TestPage);
+  NameLbl.Parent := TestPage.Surface;
+  NameLbl.Left := ScaleX(8);
+  NameLbl.Top := Top;
+  NameLbl.Width := ScaleX(150);
+  NameLbl.Height := ScaleY(18);
+  NameLbl.Font.Style := [fsBold];
+  NameLbl.Caption := Name;
+
+  StateLbl := TNewStaticText.Create(TestPage);
+  StateLbl.Parent := TestPage.Surface;
+  StateLbl.Left := ScaleX(160);
+  StateLbl.Top := Top;
+  StateLbl.Width := TestPage.SurfaceWidth - ScaleX(160);
+  StateLbl.Height := ScaleY(18);
+  StateLbl.Caption := '';
+
+  Result := Top + ScaleY(26);
+end;
+
+procedure InitializeWizard;
+var
+  SfCliVersion: String;
+  JavaVersion: String;
+  NodeVersion: String;
+  IntroLabel: TNewStaticText;
+  TopPosition: Integer;
+  JdkLabels: TArrayOfString;
+  JdkPickerLabel: TNewStaticText;
+  JdkIndex: Integer;
+  BestIndex: Integer;
+begin
+  SfCliInstallSucceeded := False;
+  JdkInstallSucceeded := False;
+
+  TestPage := CreateCustomPage(wpSelectTasks, 'Required Dependencies',
+    'AIpexium needs these tools for Salesforce development.');
+
+  // Intro line
+  IntroLabel := TNewStaticText.Create(TestPage);
+  IntroLabel.Parent := TestPage.Surface;
+  IntroLabel.Left := ScaleX(8);
+  IntroLabel.Top := 0;
+  IntroLabel.Width := TestPage.SurfaceWidth - ScaleX(8);
+  IntroLabel.Height := ScaleY(50);
+  IntroLabel.WordWrap := True;
+  IntroLabel.AutoSize := False;
+  IntroLabel.Caption := 'Setup checked your system for the tools below. Anything marked'
+    + ' "Will be installed" is set up automatically on the next step.';
+
+  TopPosition := ScaleY(60);
+
+  // Salesforce CLI row
+  SfCliPresent := IsSalesforceCliInstalled();
+  TopPosition := CreateDepRow('Salesforce CLI', TopPosition, SfCliNameLabel, SfCliStateLabel);
+  if SfCliPresent then
+  begin
+    SfCliVersion := GetInstalledSfCliVersion();
+    if SfCliVersion = '' then
+      SfCliVersion := 'detected';
+    SetDepState(SfCliStateLabel, 'Installed  (' + SfCliVersion + ')', clGreen);
+  end
+  else
+    SetDepState(SfCliStateLabel, 'Not found  -  will be installed', clOlive);
+
+  // Java JDK row (needs 17+, so don't hardcode "17" - a newer JDK may be active)
+  JavaPresent := IsJavaInstalled();
+  TopPosition := CreateDepRow('Java JDK 17+', TopPosition, JavaNameLabel, JavaStateLabel);
+
+  // Enumerate all compatible (17+) JDKs up front; the count decides whether the
+  // status line carries the version or the picker below does.
+  SelectedJavaHome := '';
+  EnumerateJdks(DetectedJdkHomes, JdkLabels);
+
+  if not JavaPresent then
+    SetDepState(JavaStateLabel, 'Not found  -  will be installed', clOlive)
+  else if GetArrayLength(DetectedJdkHomes) >= 2 then
+    { Detail lives in the dropdown below - keep the tag short. }
+    SetDepState(JavaStateLabel, 'Installed  (' + IntToStr(GetArrayLength(DetectedJdkHomes)) + ' found  -  choose below)', clGreen)
+  else
+  begin
+    JavaVersion := GetInstalledJavaVersion();
+    if JavaVersion = '' then
+      JavaVersion := 'detected';
+    SetDepState(JavaStateLabel, 'Installed  (' + JavaVersion + ')', clGreen);
+  end;
+
+  // If more than one compatible JDK (17+) is present, let the user pick which one
+  // Salesforce CLI should use. The choice is written to JAVA_HOME on install.
+  if GetArrayLength(DetectedJdkHomes) >= 2 then
+  begin
+    // Default to the highest major version (recommended for Salesforce CLI).
+    BestIndex := 0;
+    for JdkIndex := 1 to GetArrayLength(DetectedJdkMajors) - 1 do
+      if DetectedJdkMajors[JdkIndex] > DetectedJdkMajors[BestIndex] then
+        BestIndex := JdkIndex;
+
+    TopPosition := TopPosition + ScaleY(4);   { breathing room above the picker }
+
+    { Picker sits under the status column (Left=174) and is deliberately sized
+      wider than the surface's right edge, extending into the right page margin,
+      so the full "vendor - folder (recommended)" item text isn't clipped. Label
+      and combo share the same Left/Width so their edges line up. }
+    JdkPickerLabel := TNewStaticText.Create(TestPage);
+    JdkPickerLabel.Parent := TestPage.Surface;
+    JdkPickerLabel.Left := ScaleX(174);
+    JdkPickerLabel.Top := TopPosition;
+    JdkPickerLabel.Width := TestPage.SurfaceWidth - ScaleX(102);
+    JdkPickerLabel.Height := ScaleY(16);
+    JdkPickerLabel.Caption := 'Multiple JDKs found - choose which one Salesforce CLI should use';
+    TopPosition := TopPosition + ScaleY(20);
+
+    JdkComboBox := TNewComboBox.Create(TestPage);
+    JdkComboBox.Parent := TestPage.Surface;
+    JdkComboBox.Left := ScaleX(174);
+    JdkComboBox.Top := TopPosition;
+    JdkComboBox.Width := TestPage.SurfaceWidth - ScaleX(102);
+    JdkComboBox.Style := csDropDownList;
+    for JdkIndex := 0 to GetArrayLength(JdkLabels) - 1 do
+    begin
+      if JdkIndex = BestIndex then
+        JdkComboBox.Items.Add(JdkLabels[JdkIndex] + '   (recommended)')
+      else
+        JdkComboBox.Items.Add(JdkLabels[JdkIndex]);
+    end;
+    JdkComboBox.ItemIndex := BestIndex;
+    SelectedJavaHome := DetectedJdkHomes[BestIndex];
+    TopPosition := TopPosition + ScaleY(34);
+  end;
+
+  // Node.js row (required by the Salesforce CLI installer)
+  NodePresent := IsNodeInstalled();
+  TopPosition := CreateDepRow('Node.js LTS', TopPosition, NodeNameLabel, NodeStateLabel);
+  if NodePresent then
+  begin
+    NodeVersion := GetInstalledNodeVersion();
+    if NodeVersion = '' then
+      NodeVersion := 'detected';
+    SetDepState(NodeStateLabel, 'Installed  (' + NodeVersion + ')', clGreen);
+  end
+  else
+    SetDepState(NodeStateLabel, 'Not found  -  will be installed', clOlive);
+
+  // Footer: what happens next
+  TopPosition := TopPosition + ScaleY(12);
+  DepFooterLabel := TNewStaticText.Create(TestPage);
+  DepFooterLabel.Parent := TestPage.Surface;
+  DepFooterLabel.Left := ScaleX(8);
+  DepFooterLabel.Top := TopPosition;
+  DepFooterLabel.Width := TestPage.SurfaceWidth - ScaleX(8);
+  DepFooterLabel.Height := ScaleY(34);
+  DepFooterLabel.WordWrap := True;
+  DepFooterLabel.AutoSize := False;
+  if SfCliPresent and JavaPresent and NodePresent then
+    DepFooterLabel.Caption := 'All dependencies are ready. Click Next to continue.'
+  else
+    DepFooterLabel.Caption := 'Click Next to install the missing dependencies.'
+      + ' This can take a few minutes and needs an internet connection.';
+end;
+
+{ Installs a package via Winget and polls until VerifyCmd (a cmd.exe fragment
+  that exits 0 when the tool is available) succeeds, updating StateLbl live.
+  Returns True only when actually verified in this process. }
+function WingetInstallAndVerify(const PackageId, Label_, VerifyCmd: String;
+  StateLbl: TNewStaticText): Boolean;
+var
+  ResultCode: Integer;
+  ElapsedSeconds: Integer;
+  MaxWaitSeconds: Integer;
+begin
+  Result := False;
+  Log('Installing ' + PackageId + ' via Winget...');
+
+  SetDepState(StateLbl, 'Installing via Winget...', clNavy);
+  WizardForm.StatusLabel.Caption := 'Installing ' + Label_ + ' (this may take a few minutes)...';
+  WizardForm.ProgressGauge.Style := npbstMarquee;
+  WizardForm.Update;
+
+  try
+    if not Exec('cmd.exe', '/C winget install --id=' + PackageId
+        + ' --silent --accept-source-agreements --accept-package-agreements',
+        '', SW_HIDE, ewNoWait, ResultCode) then
+    begin
+      Log('Failed to launch Winget for ' + PackageId);
+      SetDepState(StateLbl, 'Failed - install manually: winget install ' + PackageId, clRed);
+      Exit;
+    end;
+
+    ElapsedSeconds := 0;
+    MaxWaitSeconds := 180;
+    while ElapsedSeconds < MaxWaitSeconds do
+    begin
+      Sleep(1000);
+      ElapsedSeconds := ElapsedSeconds + 1;
+
+      SetDepState(StateLbl, 'Installing via Winget... (' + IntToStr(ElapsedSeconds) + 's)', clNavy);
+      WizardForm.Update;
+
+      if (ElapsedSeconds mod 5) = 0 then
+      begin
+        if Exec('cmd.exe', '/C ' + VerifyCmd, '', SW_HIDE, ewWaitUntilTerminated, ResultCode)
+           and (ResultCode = 0) then
+        begin
+          Log(PackageId + ' verified after ' + IntToStr(ElapsedSeconds) + 's');
+          Result := True;
+          Break;
+        end;
+      end;
+    end;
+  finally
+    WizardForm.ProgressGauge.Style := npbstNormal;
+    WizardForm.StatusLabel.Caption := '';
+    WizardForm.Update;
+  end;
+end;
+
+{ Installs Zulu JDK 17 via Winget. Sets JdkInstallSucceeded and updates the row. }
+function InstallJavaJdk(): Boolean;
+begin
+  Result := WingetInstallAndVerify(ZULU_JDK_PACKAGE, 'Java JDK', 'java -version >nul 2>&1', JavaStateLabel);
+  if Result then
+  begin
+    JdkInstallSucceeded := True;
+    SetDepState(JavaStateLabel, 'Installed  (restart terminal to use in shell)', clGreen);
+  end
+  else
+    // Winget may have installed it but PATH isn't refreshed in this process.
+    SetDepState(JavaStateLabel, 'Installed - restart your terminal, then run: java -version', clOlive);
+end;
+
+{ Installs Node.js LTS via Winget. npm ships with Node, so verifying npm is enough. }
+function InstallNodeJs(): Boolean;
+begin
+  Result := WingetInstallAndVerify(NODEJS_PACKAGE, 'Node.js', 'npm --version >nul 2>&1', NodeStateLabel);
+  if Result then
+  begin
+    NodePresent := True;
+    SetDepState(NodeStateLabel, 'Installed', clGreen);
+  end
+  else
+    SetDepState(NodeStateLabel, 'Installed - restart your terminal, then run: node --version', clOlive);
+end;
+
+{ Installs the modern Salesforce CLI (sf) via npm. Requires npm on PATH.
+  Salesforce has no official Winget package and the old direct download now 403s. }
+function InstallSalesforceCli(): Boolean;
+var
+  ResultCode: Integer;
+  NpmReady: Boolean;
+  DoneFile: String;
+  DoneLines: TArrayOfString;
+  ElapsedSeconds: Integer;
+  NpmExitCode: Integer;
+begin
+  Result := False;
+  Log('Installing Salesforce CLI via npm...');
+
+  // npm must be reachable. If Node was just installed, PATH may not be refreshed
+  // in this process - detect that and guide the user instead of failing opaquely.
+  NpmReady := Exec('cmd.exe', '/C npm --version >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode)
+    and (ResultCode = 0);
+  if not NpmReady then
+  begin
+    Log('npm not available in installer process - cannot install SF CLI now');
+    SetDepState(SfCliStateLabel,
+      'Needs Node.js - restart, then run: npm install -g ' + SFCLI_NPM_PACKAGE, clOlive);
+    Exit;
+  end;
+
+  SetDepState(SfCliStateLabel, 'Installing via npm...', clNavy);
+  WizardForm.StatusLabel.Caption := 'Installing Salesforce CLI via npm (this may take a few minutes)...';
+  WizardForm.ProgressGauge.Style := npbstMarquee;
+  WizardForm.Update;
+
+  DoneFile := ExpandConstant('{tmp}\sfcli-npm-done.txt');
+  DeleteFile(DoneFile);
+  try
+    // Run npm non-blocking so we can show a live counter, writing the exit code
+    // to a sentinel file when it finishes (mirrors the Winget poll pattern).
+    if not Exec('cmd.exe', '/C (npm install --global ' + SFCLI_NPM_PACKAGE
+        + ' && echo 0 > "' + DoneFile + '") || echo 1 > "' + DoneFile + '"',
+        '', SW_HIDE, ewNoWait, ResultCode) then
+    begin
+      Log('Failed to launch npm');
+      SetDepState(SfCliStateLabel, 'Failed - run manually: npm install -g ' + SFCLI_NPM_PACKAGE, clRed);
+      Exit;
+    end;
+
+    ElapsedSeconds := 0;
+    while ElapsedSeconds < 600 do   { npm global install can be slow }
+    begin
+      Sleep(1000);
+      ElapsedSeconds := ElapsedSeconds + 1;
+      SetDepState(SfCliStateLabel, 'Installing via npm... (' + IntToStr(ElapsedSeconds) + 's)', clNavy);
+      WizardForm.Update;
+      if FileExists(DoneFile) then
+        Break;
+    end;
+
+    if not FileExists(DoneFile) then
+    begin
+      Log('npm install timed out');
+      SetDepState(SfCliStateLabel, 'Timed out - run manually: npm install -g ' + SFCLI_NPM_PACKAGE, clRed);
+      Exit;
+    end;
+
+    // npm finished; read its exit code from the sentinel.
+    NpmExitCode := 1;
+    if LoadStringsFromFile(DoneFile, DoneLines) and (GetArrayLength(DoneLines) > 0) then
+      NpmExitCode := StrToIntDef(Trim(DoneLines[0]), 1);
+    Log('npm install exited with code: ' + IntToStr(NpmExitCode));
+
+    if NpmExitCode <> 0 then
+    begin
+      SetDepState(SfCliStateLabel, 'Install failed - run manually: npm install -g ' + SFCLI_NPM_PACKAGE, clRed);
+      Exit;
+    end;
+
+    SfCliInstallSucceeded := True;
+    if Exec('cmd.exe', '/C sf --version >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode)
+       and (ResultCode = 0) then
+    begin
+      Log('Salesforce CLI successfully installed and verified');
+      Result := True;
+      SetDepState(SfCliStateLabel, 'Installed', clGreen);
+    end
+    else
+    begin
+      // Installed by npm, but PATH not refreshed in this process yet.
+      Log('SF CLI installed but not yet on PATH in installer process');
+      SetDepState(SfCliStateLabel, 'Installed - restart your terminal to use "sf"', clOlive);
+    end;
+  finally
+    DeleteFile(DoneFile);
+    WizardForm.ProgressGauge.Style := npbstNormal;
+    WizardForm.StatusLabel.Caption := '';
+    WizardForm.Update;
+  end;
+end;
+
+{ Persists the user-selected JDK as JAVA_HOME so Salesforce CLI uses it, and
+  updates the row to reflect the choice. Writes machine scope (HKLM) when admin,
+  otherwise user scope (HKCU). The write is idempotent, so this always runs and
+  always refreshes the label - no "already set" short-circuit, which previously
+  left the label stale when the user changed the selection and came back. }
+procedure ApplySelectedJavaHome();
+var
+  Wrote: Boolean;
+begin
+  if SelectedJavaHome = '' then
+    Exit;
+
+  { Prefer machine scope; fall back to user scope for non-elevated installs.
+    Whichever succeeds, also keep the OTHER hive from overriding our choice:
+    if an HKLM JAVA_HOME exists it wins in new shells, so when we can only write
+    HKCU we still try to keep HKLM in sync (best-effort, ignored if denied). }
+  Wrote := RegWriteStringValue(HKLM, 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'JAVA_HOME', SelectedJavaHome);
+  if Wrote then
+    Log('Set machine JAVA_HOME to selected JDK: ' + SelectedJavaHome)
+  else
+  begin
+    Wrote := RegWriteStringValue(HKCU, 'Environment', 'JAVA_HOME', SelectedJavaHome);
+    if Wrote then
+      Log('Set user JAVA_HOME to selected JDK: ' + SelectedJavaHome);
+  end;
+
+  if Wrote then
+    SetDepState(JavaStateLabel, 'Using  ' + SelectedJavaHome + '  (restart terminal)', clGreen)
+  else
+    Log('Could not write JAVA_HOME (HKLM and HKCU both denied): ' + SelectedJavaHome);
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+
+  // Drive dependency installation from the Dependency Check page.
+  if (CurPageID = TestPage.ID) then
+  begin
+    // Re-checking each tool spawns java/node/sf/npm synchronously, which freezes
+    // the wizard for a second or two. Show a busy indicator so the delay between
+    // clicking Next and the page advancing doesn't look like a hang.
+    WizardForm.StatusLabel.Caption := 'Checking dependencies, please wait...';
+    WizardForm.ProgressGauge.Style := npbstMarquee;
+    if DepFooterLabel <> nil then
+      DepFooterLabel.Caption := 'Working... applying your selection and re-checking tools.';
+    WizardForm.Update;
+    try
+      // Capture the JDK the user picked (if the picker was shown) and make it the
+      // machine JAVA_HOME so Salesforce CLI uses it.
+      if (JdkComboBox <> nil) and (JdkComboBox.ItemIndex >= 0)
+         and (JdkComboBox.ItemIndex < GetArrayLength(DetectedJdkHomes)) then
+      begin
+        SelectedJavaHome := DetectedJdkHomes[JdkComboBox.ItemIndex];
+        ApplySelectedJavaHome();
+      end;
+
+      // Re-check in case something changed since the page was built.
+      JavaPresent := IsJavaInstalled();
+      NodePresent := IsNodeInstalled();
+      SfCliPresent := IsSalesforceCliInstalled();
+    finally
+      WizardForm.ProgressGauge.Style := npbstNormal;
+      WizardForm.StatusLabel.Caption := '';
+      WizardForm.Update;
+    end;
+
+    // Java (Zulu) and Node ship only as machine-scope MSIs, so Winget needs
+    // administrator rights. Warn once, up front, so the Windows elevation
+    // prompt that follows isn't a surprise.
+    if (not JavaPresent) or (not NodePresent) then
+    begin
+      MsgBox('Setup will now install Java JDK and Node.js.'#13#10#13#10
+        + 'These require administrator access, so Windows may ask for'
+        + ' permission (a User Account Control prompt).', mbInformation, MB_OK);
+    end;
+
+    if not JavaPresent then
+      InstallJavaJdk();
+
+    // Node must be installed before the CLI (npm ships with Node).
+    if not NodePresent then
+      InstallNodeJs();
+
+    if not SfCliPresent then
+      InstallSalesforceCli();
+
+    if not (JavaPresent and NodePresent and SfCliPresent) then
+      DepFooterLabel.Caption := 'Dependency setup finished. Restart any open terminal'
+        + ' so the new tools are picked up, then click Next to continue.';
+  end;
+end;
+
+
+
+
+
+
+
+
+
+
+
+
+
 // Don't allow installing conflicting architectures
 function InitializeSetup(): Boolean;
 var
@@ -1500,9 +2414,29 @@ procedure CurStepChanged(CurStep: TSetupStep);
 var
   UpdateResultCode: Integer;
 	StartServiceResultCode: Integer;
+  JavaHome: String;
 begin
   if CurStep = ssPostInstall then
   begin
+    // Log Salesforce CLI installation status
+    if SfCliInstallSucceeded then
+    begin
+      Log('Salesforce CLI was successfully installed during setup');
+    end;
+
+    // Log Java installation status
+    if JdkInstallSucceeded then
+    begin
+      if RegQueryStringValue(HKLM, 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'JAVA_HOME', JavaHome) then
+      begin
+        Log('JAVA_HOME environment variable is set to: ' + JavaHome);
+      end
+      else
+      begin
+        Log('Warning: JAVA_HOME environment variable was not set by JDK installer');
+      end;
+    end;
+
     if IsBackgroundUpdate() then
     begin
       CreateMutex('{#AppMutex}-ready');
