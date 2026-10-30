@@ -25,7 +25,8 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { Parts, IWorkbenchLayoutService, ActivityBarPosition, LayoutSettings, EditorActionsLocation, EditorTabsMode } from '../../../services/layout/browser/layoutService.js';
 import { createActionViewItem, fillInActionBarActions as fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
+import { Action2, IMenu, IMenuService, MenuId, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { WindowTitle } from './windowTitle.js';
@@ -602,6 +603,15 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 			if (result) {
 				return result;
+			}
+		}
+
+		// Custom view items registered for the global title bar menu
+		if (action instanceof MenuItemAction) {
+			const provider = this.instantiationService.invokeFunction(accessor => accessor.get(IActionViewItemService).lookUp(MenuId.TitleBar, action.id));
+			const viewItem = provider?.(action, options);
+			if (viewItem) {
+				return viewItem;
 			}
 		}
 
