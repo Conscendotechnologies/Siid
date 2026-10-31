@@ -1,0 +1,43 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Agents mode: white, minimal chrome. Scoped to the `agents-mode` class on the workbench root. */
+
+.monaco-workbench.agents-mode .part.titlebar {
+	background-color: #ffffff !important;
+	border-bottom: none;
+}
+
+/* Only while a single group is open: a file opened beside the Agents panel keeps its tabs so it can be closed. */
+.monaco-workbench.agents-mode .part.editor > .content:not(:has(.split-view-view + .split-view-view)) .editor-group-container > .title,
+.monaco-workbench.agents-mode .part.editor > .content:not(:has(.split-view-view + .split-view-view)) .editor-group-container .breadcrumbs-control {
+	display: none !important;
+}
+
+.monaco-workbench .part.titlebar .open-in-agents .open-in-agents-button {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 0 8px;
+	height: 22px;
+	border-radius: 5px;
+	cursor: pointer;
+	font-size: 12px;
+}
+
+.monaco-workbench .part.titlebar .open-in-agents .agents-siid-logo {
+	width: 16px;
+	height: 16px;
+	background: url('./siid-logo.png') center / contain no-repeat;
+}
+
+.monaco-workbench .part.titlebar .open-in-agents .agents-siid-label {
+	font-weight: 600;
+	color: #5A2483;
+}
+
+.monaco-workbench .part.titlebar .open-in-agents:hover .open-in-agents-button {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}

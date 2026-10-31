@@ -209,6 +209,7 @@ import './contrib/speech/browser/speech.contribution.js';
 
 // Chat
 import './contrib/chat/browser/chat.contribution.js';
+import './contrib/agentsMode/browser/agentsMode.contribution.js';
 import './contrib/inlineChat/browser/inlineChat.contribution.js';
 import './contrib/mcp/browser/mcp.contribution.js';
 
