@@ -27,6 +27,17 @@
 	font-size: 12px;
 }
 
+.monaco-workbench .part.titlebar .open-in-agents .agents-siid-logo {
+	width: 16px;
+	height: 16px;
+	background: url('./siid-logo.png') center / contain no-repeat;
+}
+
+.monaco-workbench .part.titlebar .open-in-agents .agents-siid-label {
+	font-weight: 600;
+	color: #5A2483;
+}
+
 .monaco-workbench .part.titlebar .open-in-agents:hover .open-in-agents-button {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }

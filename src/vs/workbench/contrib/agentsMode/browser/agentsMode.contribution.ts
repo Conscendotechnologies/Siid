@@ -98,12 +98,33 @@ class OpenInAgentsActionViewItem extends BaseActionViewItem {
 	}
 }
 
+/** SIID logo + name, used for the title bar button that returns to the editor. */
+class ExitAgentsActionViewItem extends BaseActionViewItem {
+
+	constructor(action: IAction, options: IBaseActionViewItemOptions) {
+		super(undefined, action, options);
+	}
+
+	protected override getTooltip(): string | undefined {
+		return localize('exitAgentsTooltip', "Open in Editor");
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('open-in-agents');
+		const button = append(container, $('.open-in-agents-button'));
+		append(button, $('span.agents-siid-logo'));
+		append(button, $('span.agents-siid-label')).textContent = 'SIID';
+	}
+}
+
 class AgentsModeTitleBarContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.agentsModeTitleBar';
 
 	constructor(@IActionViewItemService actionViewItemService: IActionViewItemService, @IKeybindingService keybindingService: IKeybindingService) {
 		super();
 		this._register(actionViewItemService.register(MenuId.TitleBar, OPEN_ID, (action, options) => new OpenInAgentsActionViewItem(action, options ?? {}, keybindingService)));
+		this._register(actionViewItemService.register(MenuId.TitleBar, EXIT_ID, (action, options) => new ExitAgentsActionViewItem(action, options ?? {})));
 	}
 }
 
