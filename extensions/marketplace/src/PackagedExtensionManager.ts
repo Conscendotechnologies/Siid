@@ -85,8 +85,11 @@ export class PackagedExtensionManager {
 	}
 
 	private compareVersions(v1: string, v2: string): number {
-		const v1Parts = v1.split('.').map(Number);
-		const v2Parts = v2.split('.').map(Number);
+		// A suffix such as "-agent" ("1.2.64-agent") is split off before the numeric parse; it only breaks ties.
+		const [core1, pre1] = PackagedExtensionManager.splitVersion(v1);
+		const [core2, pre2] = PackagedExtensionManager.splitVersion(v2);
+		const v1Parts = core1.split('.').map(Number);
+		const v2Parts = core2.split('.').map(Number);
 
 		for (let i = 0; i < Math.max(v1Parts.length, v2Parts.length); i++) {
 			const p1 = v1Parts[i] || 0;
@@ -94,7 +97,16 @@ export class PackagedExtensionManager {
 			if (p1 > p2) return 1;
 			if (p1 < p2) return -1;
 		}
-		return 0;
+		// Same numbers: a bare version is newer than one with a prerelease suffix (semver); two suffixes compare as text.
+		if (pre1 === pre2) return 0;
+		if (!pre1) return 1;
+		if (!pre2) return -1;
+		return pre1 > pre2 ? 1 : -1;
+	}
+
+	private static splitVersion(version: string): [string, string] {
+		const match = /^([^-+]*)(?:-([^+]*))?/.exec(version.trim());
+		return [match?.[1] ?? version, match?.[2] ?? ''];
 	}
 
 	private getExtensionId(pkg: PackagedExtensionMeta): string {
