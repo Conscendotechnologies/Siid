@@ -10,9 +10,27 @@
 	border-bottom: none;
 }
 
-/* Only while a single group is open: a file opened beside the Agents panel keeps its tabs so it can be closed. */
-.monaco-workbench.agents-mode .part.editor > .content:not(:has(.split-view-view + .split-view-view)) .editor-group-container > .title,
-.monaco-workbench.agents-mode .part.editor > .content:not(:has(.split-view-view + .split-view-view)) .editor-group-container .breadcrumbs-control {
+/*
+ * The design shows no File/Run/Terminal/Help menus. Collapse the menubar visually; it stays in the DOM and
+ * focusable, so Alt / F10 keyboard access and the command palette still reach every menu. Window controls,
+ * the command center and the title bar actions are separate elements and are not affected.
+ */
+.monaco-workbench.agents-mode .part.titlebar > .titlebar-container > .titlebar-left > .menubar {
+	width: 0;
+	min-width: 0;
+	overflow: hidden;
+	opacity: 0;
+}
+
+/*
+ * Hide the tab strip only when there is exactly one editor group and that group has exactly one tab.
+ * - "one group": no two grid-level split views next to each other. Split views nested inside a group
+ *   (a side-by-side diff editor) are excluded with `:not(.editor-group-container .split-view-view)`.
+ * - "one tab": the group has no `.tab + .tab`.
+ * Any other file open in the group, or a second group, keeps the tabs so those editors stay reachable.
+ */
+.monaco-workbench.agents-mode .part.editor > .content:not(:has(.split-view-view:not(.editor-group-container .split-view-view) + .split-view-view)) .editor-group-container:not(:has(.title .tab + .tab)) > .title,
+.monaco-workbench.agents-mode .part.editor > .content:not(:has(.split-view-view:not(.editor-group-container .split-view-view) + .split-view-view)) .editor-group-container:not(:has(.title .tab + .tab)) .breadcrumbs-control {
 	display: none !important;
 }
 

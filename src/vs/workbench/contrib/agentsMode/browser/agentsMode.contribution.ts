@@ -129,3 +129,12 @@ class AgentsModeTitleBarContribution extends Disposable implements IWorkbenchCon
 }
 
 registerWorkbenchContribution2(AgentsModeTitleBarContribution.ID, AgentsModeTitleBarContribution, WorkbenchPhase.BlockRestore);
+
+/** Instantiates the (lazy) service at startup so it can restore the layout when the previous session ended in Agents mode. */
+class AgentsModeRecoveryContribution implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.agentsModeRecovery';
+
+	constructor(@IAgentsModeService _agentsModeService: IAgentsModeService) { }
+}
+
+registerWorkbenchContribution2(AgentsModeRecoveryContribution.ID, AgentsModeRecoveryContribution, WorkbenchPhase.AfterRestored);
