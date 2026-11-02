@@ -41,7 +41,8 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./"
+    "watch": "tsc -watch -p ./",
+    "test": "node --test test/updatePolicy.test.js"
   },
   "devDependencies": {
     "@types/vscode": "^1.50.0",
