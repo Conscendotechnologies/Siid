@@ -1,5 +1,3 @@
-## [v2026.1.1]
+## [v2026.1.2]
 
-fix: keep the SIID logo visible at normal window heights by @pavansaikodanda in 42038f657
-
-fix: stop stuck approvals, early condensing and slow task starts by @pavansaikodanda in e3d1f1f73
+fix: make the first-edit wait cancellable and stop lost cancels, rejected temperature and summary retries by @pavansaikodanda in 58495df7b
