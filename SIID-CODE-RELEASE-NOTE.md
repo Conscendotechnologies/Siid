@@ -1,5 +1,5 @@
-## [v2026.1.0]
+## [v2026.1.1]
 
-feat!: connect the Agents screen to the real product state by @pavansaikodanda in aab235617
+fix: keep the SIID logo visible at normal window heights by @pavansaikodanda in 42038f657
 
-fix: keep edited files beside the Agents panel and survive non-JSON tool asks by @pavansaikodanda in bf700f27f
+fix: stop stuck approvals, early condensing and slow task starts by @pavansaikodanda in e3d1f1f73
