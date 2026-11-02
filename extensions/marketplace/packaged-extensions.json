@@ -164,7 +164,8 @@
     "extensionId": "ConscendoTechInc.siid-code",
     "displayName": "Siid Code",
     "version": "2026.1.0",
-    "publisher": "ConscendoTechnologies",
+    "publisher": "ConscendoTechInc",
+    "autoUpdate": true,
     "category": "Productivity",
     "tags": ["siid", "code", "productivity"],
     "addedDate": "2026-02-21"

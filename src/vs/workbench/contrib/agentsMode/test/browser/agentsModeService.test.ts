@@ -9,13 +9,15 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { INotification } from '../../../../../platform/notification/common/notification.js';
 import { WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
 import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
 import { Parts } from '../../../../services/layout/browser/layoutService.js';
 import { ThemeSettingDefaults } from '../../../../services/themes/common/workbenchThemeService.js';
-import { AGENTS_MODE_CLASS, AGENTS_MODE_MARKER_KEY, AgentsModeService, CLOSE_AGENTS_VIEW_COMMAND, OPEN_AGENTS_VIEW_COMMAND, OPEN_TIMEOUT_MS } from '../../browser/agentsModeService.js';
+import { AGENTS_MODE_CLASS, AGENTS_MODE_MARKER_KEY, AgentsModeService, CLOSE_AGENTS_VIEW_COMMAND, OPEN_AGENTS_VIEW_COMMAND, OPEN_TIMEOUT_MS, UPDATE_EXTENSIONS_COMMAND } from '../../browser/agentsModeService.js';
 
 suite('AgentsModeService', () => {
 
@@ -157,6 +159,24 @@ suite('AgentsModeService', () => {
 		assert.strictEqual(t.storage.size, 0, 'marker removed after rollback');
 	});
 
+	test('missing open command offers Update Siid Code; a registered command that fails does not', async () => {
+		const missing = setup({ failOpen: true });
+		await missing.service.enter();
+		const primary = (missing.notifications[0] as INotification).actions?.primary ?? [];
+		assert.deepStrictEqual(primary.map(action => action.label), ['Update Siid Code']);
+		await primary[0].run();
+		assert.deepStrictEqual(missing.commands, [OPEN_AGENTS_VIEW_COMMAND, UPDATE_EXTENSIONS_COMMAND]);
+
+		const registration = CommandsRegistry.registerCommand(OPEN_AGENTS_VIEW_COMMAND, () => { });
+		try {
+			const failing = setup({ failOpen: true });
+			await failing.service.enter();
+			assert.strictEqual((failing.notifications[0] as INotification).actions, undefined);
+		} finally {
+			registration.dispose();
+		}
+	});
+
 	// 1. Layout persistence
 
 	test('marker is stored on enter and removed on normal exit', async () => {
@@ -200,6 +220,7 @@ suite('AgentsModeService', () => {
 		assert.ok(OPEN_TIMEOUT_MS <= 20000);
 		assert.strictEqual(t.service.isActive, false);
 		assert.strictEqual(t.notifications.length, 1);
+		assert.strictEqual((t.notifications[0] as INotification).actions, undefined, 'a timeout is not a missing command');
 		assert.deepStrictEqual([...t.visible.values()], entryVisible);
 		assert.deepStrictEqual(t.commands, [OPEN_AGENTS_VIEW_COMMAND]);
 

@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mainWindow } from '../../../../base/browser/window.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -22,6 +23,9 @@ export const AgentsModeContext = new RawContextKey<boolean>('siid.agentsMode', f
 /** Commands contributed by the bundled Siid-Code extension (publisher-independent command prefix `siid-code`). */
 export const OPEN_AGENTS_VIEW_COMMAND = 'siid-code.openAgentsView';
 export const CLOSE_AGENTS_VIEW_COMMAND = 'siid-code.closeAgentsView';
+
+/** Contributed by the bundled marketplace extension; installs the packaged version of anything out of date. */
+export const UPDATE_EXTENSIONS_COMMAND = 'marketplace.updateAllExtensions';
 
 export const AGENTS_MODE_CLASS = 'agents-mode';
 
@@ -44,6 +48,9 @@ export interface IAgentsModeService {
 }
 
 const enum State { Off, Entering, On, Exiting }
+
+/** A slow open is not a missing command: extension commands only reach the registry once the extension has activated. */
+class OpenTimeoutError extends Error { }
 
 interface ISavedLayout {
 	readonly visibility: Map<Parts, boolean>;
@@ -144,9 +151,17 @@ export class AgentsModeService extends Disposable implements IAgentsModeService 
 			this.logService.error('[agentsMode] failed to enter Agents mode', error);
 			await this.restore();
 			this.state = State.Off;
+			const commandMissing = !(error instanceof OpenTimeoutError) && !CommandsRegistry.getCommand(OPEN_AGENTS_VIEW_COMMAND);
 			this.notificationService.notify({
 				severity: Severity.Error,
-				message: localize('agentsMode.failed', "Could not open Agents mode: the Siid Code Agents view is unavailable. {0}", error instanceof Error ? error.message : String(error))
+				message: localize('agentsMode.failed', "Could not open Agents mode: the Siid Code Agents view is unavailable. {0}", error instanceof Error ? error.message : String(error)),
+				actions: commandMissing ? {
+					primary: [toAction({
+						id: UPDATE_EXTENSIONS_COMMAND,
+						label: localize('agentsMode.updateSiidCode', "Update Siid Code"),
+						run: () => this.commandService.executeCommand(UPDATE_EXTENSIONS_COMMAND)
+					})]
+				} : undefined
 			});
 			return;
 		}
@@ -165,7 +180,7 @@ export class AgentsModeService extends Disposable implements IAgentsModeService 
 		const timeout = new Promise<never>((_, reject) => {
 			timer = setTimeout(() => {
 				timedOut = true;
-				reject(new Error(localize('agentsMode.timeout', "Timed out waiting for the Agents view.")));
+				reject(new OpenTimeoutError(localize('agentsMode.timeout', "Timed out waiting for the Agents view.")));
 			}, OPEN_TIMEOUT_MS);
 		});
 		try {
